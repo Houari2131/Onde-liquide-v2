@@ -1,0 +1,2353 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
+<meta name="theme-color" content="#050505">
+<title>Onde liquide — le son devient fluide</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Instrument+Sans:ital,wght@0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
+<style>
+/* ============================================================
+   ONDE LIQUIDE — Thème « Encre »
+   ============================================================ */
+:root {
+  --encre:        #050505;
+  --encre-2:      #0b0b0d;
+  --encre-3:      #121216;
+  --or:           #d4af37;
+  --or-doux:      #e8cf7a;
+  --or-fonce:     #8a6f1f;
+  --texte:        #e9e4d8;
+  --texte-sourd:  #8f8a7d;
+  --ligne:        rgba(212,175,55,.18);
+  --ligne-forte:  rgba(212,175,55,.45);
+  --danger:       #c0563a;
+  --rayon:        14px;
+  --safe-b: env(safe-area-inset-bottom, 0px);
+  --safe-t: env(safe-area-inset-top, 0px);
+  --font-serif: "Instrument Serif", Georgia, serif;
+  --font-sans:  "Instrument Sans", system-ui, sans-serif;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+html, body { height: 100%; overflow: hidden; }
+body {
+  background: var(--encre);
+  color: var(--texte);
+  font-family: var(--font-sans);
+  overscroll-behavior: none;
+}
+
+/* ---------- Canvas principal ---------- */
+#scene {
+  position: fixed; inset: 0;
+  width: 100%; height: 100%;
+  display: block;
+  cursor: crosshair;
+  touch-action: none;
+}
+
+/* ---------- Vignette + grain de film ---------- */
+#vignette {
+  position: fixed; inset: 0;
+  pointer-events: none;
+  background: radial-gradient(ellipse 120% 90% at 50% 45%, transparent 55%, rgba(0,0,0,.55) 100%);
+  z-index: 3;
+}
+#grain {
+  position: fixed; inset: -50%;
+  width: 200%; height: 200%;
+  pointer-events: none;
+  opacity: .05;
+  z-index: 4;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='240'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  animation: grain-shift 1.1s steps(4) infinite;
+}
+@keyframes grain-shift {
+  0%   { transform: translate(0,0); }
+  25%  { transform: translate(-2%,1.5%); }
+  50%  { transform: translate(1.5%,-1%); }
+  75%  { transform: translate(-1%,2%); }
+  100% { transform: translate(0,0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  #grain { animation: none; }
+}
+
+/* ---------- En-tête ---------- */
+header {
+  position: fixed;
+  top: calc(10px + var(--safe-t)); left: 14px; right: 14px;
+  display: flex; align-items: center; justify-content: space-between;
+  z-index: 10;
+  pointer-events: none;
+}
+header > * { pointer-events: auto; }
+.marque {
+  font-family: var(--font-serif);
+  font-size: clamp(17px, 2.4vw, 22px);
+  letter-spacing: .06em;
+  color: var(--or);
+  text-shadow: 0 0 24px rgba(212,175,55,.35);
+  user-select: none;
+}
+.marque em { font-style: italic; color: var(--or-doux); }
+.header-actions { display: flex; gap: 8px; }
+#frequence { font-family: var(--font-sans); font-size: 14px; font-variant-numeric: tabular-nums; letter-spacing: .08em; color: var(--or-doux); transition: color .25s; opacity: .85; margin-left: auto; margin-right: 14px; }
+#freq-unite { margin-left: 3px; font-size: 11px; opacity: .55; }
+
+/* ---------- Boutons génériques ---------- */
+.btn {
+  appearance: none;
+  border: 1px solid var(--ligne);
+  background: rgba(5,5,5,.55);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  color: var(--texte);
+  font-family: var(--font-sans);
+  font-size: 13px;
+  padding: 8px 14px;
+  border-radius: var(--rayon);
+  cursor: pointer;
+  transition: border-color .2s, color .2s, background .2s, transform .12s;
+  user-select: none;
+}
+.btn:hover { border-color: var(--ligne-forte); color: var(--or-doux); }
+.btn:active { transform: scale(.96); }
+.btn[aria-pressed="true"] {
+  background: rgba(212,175,55,.14);
+  border-color: var(--or);
+  color: var(--or-doux);
+}
+.btn-icone {
+  width: 38px; height: 38px; padding: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+  border-radius: 50%;
+}
+.btn-icone svg { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+
+/* ---------- Barre UI basse ---------- */
+#barre {
+  position: fixed;
+  left: 0; right: 0;
+  bottom: 0;
+  z-index: 10;
+  display: flex; flex-direction: column; align-items: center;
+  padding: 10px 12px calc(10px + var(--safe-b));
+  background: linear-gradient(to top, rgba(5,5,5,.92) 0%, rgba(5,5,5,.55) 70%, transparent 100%);
+}
+#sources {
+  display: flex; flex-wrap: wrap; justify-content: center;
+  gap: 7px;
+  max-width: 780px;
+  margin-bottom: 8px;
+}
+.chip {
+  appearance: none;
+  border: 1px solid var(--ligne);
+  background: rgba(11,11,13,.7);
+  color: var(--texte-sourd);
+  font-family: var(--font-sans);
+  font-size: 12.5px;
+  padding: 7px 13px;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: all .2s;
+  user-select: none;
+}
+.chip:hover { color: var(--texte); border-color: var(--ligne-forte); }
+.chip[aria-pressed="true"] {
+  color: var(--encre);
+  background: var(--or);
+  border-color: var(--or);
+  font-weight: 600;
+  box-shadow: 0 0 18px rgba(212,175,55,.4);
+}
+#barre-secondaire {
+  display: flex; align-items: center; gap: 7px; flex-wrap: wrap; justify-content: center;
+}
+#barre-secondaire select {
+  appearance: none;
+  background: rgba(11,11,13,.7) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%23d4af37' fill='none' stroke-width='1.5'/%3E%3C/svg%3E") no-repeat right 12px center;
+  border: 1px solid var(--ligne);
+  color: var(--texte);
+  font-family: var(--font-sans);
+  font-size: 12.5px;
+  padding: 8px 30px 8px 13px;
+  border-radius: var(--rayon);
+  cursor: pointer;
+}
+#barre-secondaire select:focus-visible, .btn:focus-visible, .chip:focus-visible, input:focus-visible {
+  outline: 2px solid var(--or);
+  outline-offset: 2px;
+}
+#label-source {
+  font-size: 11px; color: var(--texte-sourd); letter-spacing: .12em; text-transform: uppercase;
+  display: flex; align-items: center; gap: 7px;
+}
+#label-source .pastille {
+  width: 7px; height: 7px; border-radius: 50%;
+  background: var(--texte-sourd);
+  transition: background .3s, box-shadow .3s;
+}
+#label-source.actif .pastille { background: var(--or); box-shadow: 0 0 8px var(--or); }
+
+/* ---------- Panneau réglages pliable ---------- */
+#panneau {
+  position: fixed;
+  right: 12px;
+  bottom: calc(118px + var(--safe-b));
+  z-index: 11;
+  width: min(320px, calc(100vw - 24px));
+  max-height: min(62vh, 560px);
+  overflow-y: auto;
+  background: rgba(9,9,11,.88);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--ligne);
+  border-radius: 18px;
+  padding: 16px 16px 18px;
+  transform: translateY(14px);
+  opacity: 0;
+  pointer-events: none;
+  transition: transform .28s cubic-bezier(.2,.9,.3,1), opacity .28s;
+}
+#panneau.ouvert { transform: translateY(0); opacity: 1; pointer-events: auto; }
+#panneau h2 {
+  font-family: var(--font-serif);
+  font-size: 19px; color: var(--or);
+  font-weight: 400; margin-bottom: 4px;
+}
+#panneau .sous-titre { font-size: 11px; color: var(--texte-sourd); margin-bottom: 14px; letter-spacing: .08em; text-transform: uppercase; }
+.reglage { margin-bottom: 13px; }
+.reglage .entete {
+  display: flex; justify-content: space-between; align-items: baseline;
+  font-size: 12.5px; margin-bottom: 5px;
+}
+.reglage .valeur { color: var(--or-doux); font-variant-numeric: tabular-nums; font-size: 11.5px; }
+.reglage input[type="range"] {
+  width: 100%; height: 22px;
+  appearance: none; background: transparent; cursor: pointer;
+}
+.reglage input[type="range"]::-webkit-slider-runnable-track {
+  height: 3px; border-radius: 2px;
+  background: linear-gradient(to right, var(--or) var(--remplissage,50%), rgba(212,175,55,.15) var(--remplissage,50%));
+}
+.reglage input[type="range"]::-webkit-slider-thumb {
+  appearance: none;
+  width: 15px; height: 15px; border-radius: 50%;
+  background: var(--or);
+  margin-top: -6px;
+  box-shadow: 0 0 10px rgba(212,175,55,.55);
+}
+.reglage input[type="range"]::-moz-range-track {
+  height: 3px; border-radius: 2px; background: rgba(212,175,55,.15);
+}
+.reglage input[type="range"]::-moz-range-progress { height: 3px; border-radius: 2px; background: var(--or); }
+.reglage input[type="range"]::-moz-range-thumb {
+  width: 15px; height: 15px; border: none; border-radius: 50%;
+  background: var(--or); box-shadow: 0 0 10px rgba(212,175,55,.55);
+}
+.reglage-binaire { display: flex; justify-content: space-between; align-items: center; font-size: 12.5px; }
+.interrupteur {
+  position: relative; width: 40px; height: 22px;
+  border-radius: 999px; border: 1px solid var(--ligne);
+  background: var(--encre-3); cursor: pointer;
+  transition: background .2s, border-color .2s;
+}
+.interrupteur::after {
+  content: ""; position: absolute; top: 2px; left: 2px;
+  width: 16px; height: 16px; border-radius: 50%;
+  background: var(--texte-sourd);
+  transition: transform .2s, background .2s;
+}
+.interrupteur[aria-checked="true"] { background: rgba(212,175,55,.2); border-color: var(--or); }
+.interrupteur[aria-checked="true"]::after { transform: translateX(18px); background: var(--or); }
+#panneau hr { border: none; border-top: 1px solid var(--ligne); margin: 14px 0; }
+#presets { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.preset {
+  font-size: 11.5px; padding: 5px 11px; border-radius: 999px;
+  border: 1px solid var(--ligne); background: transparent;
+  color: var(--texte-sourd); cursor: pointer; font-family: var(--font-sans);
+  transition: all .2s;
+}
+.preset:hover { color: var(--or-doux); border-color: var(--ligne-forte); }
+#panneau .section-titre {
+  font-size: 11px; letter-spacing: .12em; text-transform: uppercase;
+  color: var(--texte-sourd); margin: 2px 0 8px;
+}
+
+/* ---------- Statut aria-live (invisible) ---------- */
+#statut {
+  position: absolute; width: 1px; height: 1px;
+  overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap;
+}
+
+/* ---------- Toasts ---------- */
+#toasts {
+  position: fixed; top: calc(58px + var(--safe-t)); left: 50%;
+  transform: translateX(-50%);
+  z-index: 20; display: flex; flex-direction: column; gap: 7px;
+  align-items: center; pointer-events: none;
+  width: min(92vw, 460px);
+}
+.toast {
+  background: rgba(9,9,11,.92);
+  border: 1px solid var(--ligne-forte);
+  color: var(--texte);
+  font-size: 13px;
+  padding: 9px 18px; border-radius: 999px;
+  animation: toast-in .3s cubic-bezier(.2,.9,.3,1);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  text-align: center;
+}
+.toast.erreur { border-color: var(--danger); color: #eab4a2; }
+.toast.sortant { opacity: 0; transform: translateY(-8px); transition: all .4s; }
+@keyframes toast-in { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+
+/* ---------- Modale onboarding ---------- */
+#onboarding {
+  position: fixed; inset: 0; z-index: 50;
+  background: var(--encre);
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  gap: 0;
+  transition: opacity .8s ease;
+}
+#onboarding.sorti { opacity: 0; pointer-events: none; }
+#goutte {
+  width: 14px; height: 14px; border-radius: 50% 50% 50% 50% / 60% 60% 40% 40%;
+  background: radial-gradient(circle at 35% 30%, var(--or-doux), var(--or) 55%, var(--or-fonce));
+  box-shadow: 0 0 40px rgba(212,175,55,.6);
+  animation: chute-goutte 1.1s cubic-bezier(.5,0,.9,.4) forwards;
+  opacity: 0;
+}
+@keyframes chute-goutte {
+  0%   { transform: translateY(-42vh) scale(.6,1.3); opacity: 0; }
+  15%  { opacity: 1; }
+  80%  { transform: translateY(0) scale(1); }
+  88%  { transform: translateY(2px) scale(1.4,.5); border-radius: 50%; }
+  100% { transform: translateY(0) scale(1); opacity: 1; }
+}
+#onde {
+  width: 200px; height: 200px;
+  border: 1px solid var(--or);
+  border-radius: 50%;
+  margin-top: -107px;
+  opacity: 0;
+  animation: expansion-onde 1.6s ease-out .85s forwards;
+}
+@keyframes expansion-onde {
+  0%   { transform: scale(.05); opacity: .9; }
+  100% { transform: scale(1.6); opacity: 0; }
+}
+#titre-onboarding {
+  font-family: var(--font-serif);
+  font-size: clamp(38px, 8vw, 68px);
+  color: var(--texte);
+  text-align: center;
+  line-height: 1.05;
+  margin-top: 26px;
+  opacity: 0;
+  transform: translateY(16px);
+  animation: montee .9s ease 1.7s forwards;
+}
+#titre-onboarding em { font-style: italic; color: var(--or); }
+#sous-titre-onboarding {
+  font-size: 14px; color: var(--texte-sourd);
+  letter-spacing: .05em; margin-top: 14px;
+  text-align: center; max-width: 340px; padding: 0 20px;
+  opacity: 0; transform: translateY(14px);
+  animation: montee .9s ease 2s forwards;
+}
+@keyframes montee { to { opacity: 1; transform: none; } }
+#entrer {
+  margin-top: 34px;
+  font-size: 15px; padding: 13px 44px; border-radius: 999px;
+  border: 1px solid var(--or);
+  background: transparent; color: var(--or-doux);
+  font-family: var(--font-serif); font-style: italic; font-size: 18px;
+  cursor: pointer; letter-spacing: .04em;
+  opacity: 0; transform: translateY(14px);
+  animation: montee .9s ease 2.35s forwards;
+  transition: background .25s, color .25s, box-shadow .25s;
+}
+#entrer:hover { background: var(--or); color: var(--encre); box-shadow: 0 0 34px rgba(212,175,55,.5); }
+
+/* ---------- Lecteur fichier caché ---------- */
+#fichier { display: none; }
+
+/* ---------- Responsive ---------- */
+@media (max-width: 620px) {
+  .chip { font-size: 11.5px; padding: 6px 11px; }
+  #sources { gap: 5px; }
+  #label-source { display: none; }
+  #panneau { bottom: calc(140px + var(--safe-b)); }
+  .marque { font-size: 16px; }
+}
+@media (max-height: 480px) {
+  #panneau { max-height: 72vh; }
+}
+</style>
+</head>
+<body>
+
+<!-- ================= Canvas principal ================= -->
+<canvas id="scene"></canvas>
+<div id="vignette"></div>
+<div id="grain" aria-hidden="true"></div>
+
+<!-- ================= En-tête ================= -->
+<header>
+  <div class="marque">Onde <em>liquide</em></div>
+  <div id="frequence" aria-hidden="true">
+    <span id="freq-valeur">—</span><span id="freq-unite">Hz</span>
+  </div>
+  <div class="header-actions">
+    <button class="btn btn-icone" id="btn-partage" title="Copier le lien de partage" aria-label="Partager la configuration">
+      <svg viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7"/><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7"/></svg>
+    </button>
+    <button class="btn btn-icone" id="btn-capture" title="Exporter une image PNG" aria-label="Exporter une image PNG">
+      <svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="12" cy="12" r="3.5"/><path d="M8 5l1.5-2h5L16 5"/></svg>
+    </button>
+    <button class="btn btn-icone" id="btn-webm" title="Enregistrer un clip WebM de 10 s" aria-label="Enregistrer un clip WebM">
+      <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3" fill="currentColor" stroke="none"/></svg>
+    </button>
+    <button class="btn btn-icone" id="btn-reglages" title="Réglages" aria-label="Ouvrir les réglages" aria-expanded="false">
+      <svg viewBox="0 0 24 24"><path d="M4 8h10M18 8h2M4 16h2M10 16h10"/><circle cx="16" cy="8" r="2.2"/><circle cx="8" cy="16" r="2.2"/></svg>
+    </button>
+  </div>
+</header>
+
+<!-- ================= Panneau réglages pliable ================= -->
+<aside id="panneau" role="dialog" aria-label="Réglages" aria-hidden="true">
+  <h2>Réglages</h2>
+  <p class="sous-titre">Moteur fluide &amp; rendu</p>
+
+  <div class="section-titre">Fluide</div>
+  <div class="reglage">
+    <div class="entete"><label for="r-viscosite">Viscosité</label><span class="valeur" id="v-viscosite"></span></div>
+    <input type="range" id="r-viscosite" min="0" max="100" step="1">
+  </div>
+  <div class="reglage">
+    <div class="entete"><label for="r-amplitude">Amplitude</label><span class="valeur" id="v-amplitude"></span></div>
+    <input type="range" id="r-amplitude" min="0" max="100" step="1">
+  </div>
+  <div class="reglage">
+    <div class="entete"><label for="r-rapidite">Vitesse de teinte</label><span class="valeur" id="v-rapidite"></span></div>
+    <input type="range" id="r-rapidite" min="0" max="100" step="1">
+  </div>
+  <div class="reglage">
+    <div class="entete"><label for="r-resolution">Résolution de grille</label><span class="valeur" id="v-resolution"></span></div>
+    <input type="range" id="r-resolution" min="64" max="512" step="32">
+  </div>
+  <div class="reglage">
+    <div class="entete"><label for="r-force">Force d'injection</label><span class="valeur" id="v-force"></span></div>
+    <input type="range" id="r-force" min="0" max="100" step="1">
+  </div>
+  <div class="reglage reglage-binaire">
+    <label id="l-symetrie">Symétrie miroir</label>
+    <button class="interrupteur" id="s-symetrie" role="switch" aria-checked="false" aria-labelledby="l-symetrie"></button>
+  </div>
+
+  <hr>
+
+  <div class="section-titre">Rendu</div>
+  <div class="reglage">
+    <div class="entete"><label for="r-grain">Grain de film</label><span class="valeur" id="v-grain"></span></div>
+    <input type="range" id="r-grain" min="0" max="100" step="1">
+  </div>
+  <div class="reglage">
+    <div class="entete"><label for="r-vignette">Vignette</label><span class="valeur" id="v-vignette"></span></div>
+    <input type="range" id="r-vignette" min="0" max="100" step="1">
+  </div>
+
+  <hr>
+
+  <div class="section-titre">Thèmes</div>
+  <div id="presets"></div>
+</aside>
+
+<!-- ================= Barre UI basse ================= -->
+<footer id="barre">
+  <div id="sources" role="group" aria-label="Source audio">
+    <button class="chip" data-source="micro" aria-pressed="false">Micro</button>
+    <button class="chip" data-source="oiseaux" aria-pressed="false">Oiseaux</button>
+    <button class="chip" data-source="bols" aria-pressed="false">Bols tibétains</button>
+    <button class="chip" data-source="pluie" aria-pressed="false">Pluie</button>
+    <button class="chip" data-source="fichier" aria-pressed="false">Fichier</button>
+    <button class="chip" data-source="clavier" aria-pressed="false">Clavier A–Z</button>
+  </div>
+  <div id="barre-secondaire">
+    <label id="label-source" for="mode"><span class="pastille"></span><span id="label-source-texte">aucune source</span></label>
+    <select id="mode" aria-label="Mode fluide"></select>
+    <button class="btn" id="btn-geler" aria-pressed="false">Geler</button>
+    <button class="btn" id="btn-respirer" aria-pressed="false">Respirer</button>
+  </div>
+</footer>
+
+<!-- ================= Toasts & statut ================= -->
+<div id="toasts" aria-hidden="true"></div>
+<div id="statut" role="status" aria-live="polite"></div>
+
+<!-- ================= Modale onboarding ================= -->
+<div id="onboarding" role="dialog" aria-label="Bienvenue">
+  <div id="goutte"></div>
+  <div id="onde"></div>
+  <h1 id="titre-onboarding">Onde <em>liquide</em></h1>
+  <p id="sous-titre-onboarding">Le son devient un fluide coloré. Faites couler la fréquence, touchez l'eau, laissez vibrer l'encre.</p>
+  <button id="entrer">Entrer</button>
+</div>
+
+<input type="file" id="fichier" accept="audio/*" aria-label="Choisir un fichier audio">
+
+<script>
+'use strict';
+/* ============================================================
+   ONDE LIQUIDE — Échafaudage applicatif
+   Moteur WebGL attendu : window.Fluid { init, update, render,
+   resize, capture } — stubs fournis en fin de fichier.
+   ============================================================ */
+
+/* ==================== CONSTANTES ==================== */
+const FREQUENCE_MIN = 500;    // Hz — borne basse analysée
+const FREQUENCE_MAX = 9000;   // Hz — borne haute analysée
+
+// Tranches spectrales → palettes HSV (h en degrés 0–360)
+const TRANCHES = [
+  { min: 500,  max: 1000, hsv: [ 36, 0.82, 0.95] },  // or ambré
+  { min: 1000, max: 2000, hsv: [ 16, 0.85, 0.92] },  // cuivre / corail
+  { min: 2000, max: 4000, hsv: [340, 0.55, 0.92] },  // rose poudré
+  { min: 4000, max: 6000, hsv: [262, 0.55, 0.90] },  // violet
+  { min: 6000, max: 9000, hsv: [190, 0.70, 0.92] },  // cyan glacial
+];
+
+// Modes fluides (le moteur WebGL les interprétera)
+const MODES_FLUIDES = ['Encre', 'Lave', 'Nébuleuse', 'Aurora', 'Galaxie'];
+
+// Presets thématiques : réglages + teinte dominante initiale
+const PRESETS = {
+  'Encre d\u2019or':  { viscosite: 62, amplitude: 70, rapidite: 30, resolution: 256, force: 60, symetrie: false, grain: 35, vignette: 60, h: 36,  s: 0.82, v: 0.95, mode: 0 },
+  'Lave lente':       { viscosite: 88, amplitude: 45, rapidite: 12, resolution: 192, force: 40, symetrie: true,  grain: 20, vignette: 75, h: 16,  s: 0.85, v: 0.92, mode: 1 },
+  'Nébuleuse':        { viscosite: 25, amplitude: 85, rapidite: 55, resolution: 256, force: 75, symetrie: false, grain: 45, vignette: 45, h: 262, s: 0.55, v: 0.90, mode: 2 },
+  'Aurore boréale': { viscosite: 35, amplitude: 75, rapidite: 70, resolution: 320, force: 55, symetrie: true,  grain: 25, vignette: 50, h: 190, s: 0.70, v: 0.92, mode: 3 },
+  'Galaxie':          { viscosite: 45, amplitude: 90, rapidite: 85, resolution: 384, force: 80, symetrie: false, grain: 55, vignette: 80, h: 262, s: 0.60, v: 0.95, mode: 4 },
+};
+
+const DUREE_CLIP_MS = 10000;          // durée du clip WebM
+const DPR_MAX = 2;                    // plafond du devicePixelRatio
+const REDUCED_MOTION = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+/* ==================== UTILS ==================== */
+const $  = (sel, root) => (root || document).querySelector(sel);
+const $$ = (sel, root) => Array.from((root || document).querySelectorAll(sel));
+const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+const lerp  = (a, b, t) => a + (b - a) * t;
+const TAU = Math.PI * 2;
+
+/** HSV (h:0–360, s:0–1, v:0–1) → [r,g,b] 0–1 */
+function hsv2rgb(h, s, v) {
+  h = ((h % 360) + 360) % 360;
+  const c = v * s, x = c * (1 - Math.abs(((h / 60) % 2) - 1)), m = v - c;
+  let r, g, b;
+  if      (h <  60) { r = c; g = x; b = 0; }
+  else if (h < 120) { r = x; g = c; b = 0; }
+  else if (h < 180) { r = 0; g = c; b = x; }
+  else if (h < 240) { r = 0; g = x; b = c; }
+  else if (h < 300) { r = x; g = 0; b = c; }
+  else              { r = c; g = 0; b = x; }
+  return [r + m, g + m, b + m];
+}
+
+/** Toast éphémère + statut aria-live */
+function toast(message, estErreur = false, duree = 3200) {
+  const zone = $('#toasts');
+  const el = document.createElement('div');
+  el.className = 'toast' + (estErreur ? ' erreur' : '');
+  el.textContent = message;
+  zone.appendChild(el);
+  $('#statut').textContent = message;
+  setTimeout(() => { el.classList.add('sortant'); setTimeout(() => el.remove(), 450); }, duree);
+}
+
+/** Interpolation douce (exponentielle, frame-rate indépendante) */
+function adoucir(courant, cible, lambda, dt) {
+  return lerp(courant, cible, 1 - Math.exp(-lambda * dt));
+}
+
+/* ==================== ÉTAT ==================== */
+/**
+ * Objet central lu par le moteur WebGL à chaque frame.
+ * Fluid.update(State) / Fluid.render(State) — contrat d'interface.
+ */
+const State = {
+  frequency: 0,                 // Hz, fréquence dominante lissée
+  level: 0,                     // RMS 0–1 lissé
+  spread: 0,                    // étalement spectral (log) 0–1
+  color: [36, 0.82, 0.95],      // HSV cible (degrés, 0–1, 0–1)
+  colorLisse: [36, 0.82, 0.95], // HSV lissé pour le rendu
+  mode: 0,                      // index MODES_FLUIDES
+  source: null,                 // 'micro' | 'oiseaux' | 'bols' | 'pluie' | 'fichier' | 'clavier'
+  geler: false,
+  respirer: false,
+  injection: { x: 0.5, y: 0.5, strength: 0 }, // position normalisée canvas + force 0–1
+  settings: {                   // 0–100 (sauf résolution)
+    viscosite: 62, amplitude: 70, rapidite: 30,
+    resolution: 256, force: 60,
+    symetrie: false, grain: 35, vignette: 60,
+    sensibilite: 50,            // molette
+  },
+};
+
+/* ==================== AUDIO ==================== */
+const Audio = {
+  ctx: null,
+  analyser: null,
+  noeudActif: null,      // source actuellement branchée à l'analyseur
+  arretDemo: null,       // fonction d'arrêt de la démo courante
+  demoActive: null,      // démo synthétique en cours : { noeuds, minuteurs, master }
+  bufferFichier: null,
+  sourceFichier: null,
+
+  /** Crée / reprend le contexte (appelé après un geste utilisateur). */
+  assurerContexte() {
+    if (!this.ctx) {
+      const AC = window.AudioContext || window.webkitAudioContext;
+      this.ctx = new AC();
+      this.analyser = this.ctx.createAnalyser();
+      this.analyser.fftSize = 2048;
+      this.analyser.smoothingTimeConstant = 0.75;
+    }
+    if (this.ctx.state === 'suspended') this.ctx.resume();
+    return this.ctx;
+  },
+
+  arreterTout() {
+    // Démo synthétique : stop() + disconnect() sur chaque nœud suivi, puis purge des listes et timers
+    const demo = this.demoActive;
+    if (demo) {
+      demo.minuteurs.forEach(clearTimeout);
+      demo.minuteurs.length = 0;
+      demo.noeuds.splice(0).forEach(n => {
+        if (typeof n.stop === 'function') { try { n.stop(); } catch (e) {} }
+        try { n.disconnect(); } catch (e) {}
+      });
+      try { demo.master.disconnect(); } catch (e) {}
+      this.demoActive = null;
+    }
+    if (this.arretDemo) { try { this.arretDemo(); } catch (e) {} this.arretDemo = null; }
+    if (this.sourceFichier) { try { this.sourceFichier.stop(); } catch (e) {} this.sourceFichier = null; }
+    if (this.noeudActif && this.noeudActif.disconnect) { try { this.noeudActif.disconnect(); } catch (e) {} }
+    this.noeudActif = null;
+    State.source = null;
+  },
+
+  /** Branche un nœud source sur l'analyseur. */
+  brancher(noeud) {
+    if (this.noeudActif) { try { this.noeudActif.disconnect(); } catch (e) {} }
+    this.noeudActif = noeud;
+    noeud.connect(this.analyser);
+  },
+
+  /** Micro avec gestion d'erreurs complète. */
+  async micro() {
+    this.arreterTout();
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      toast('Le microphone n\u2019est pas disponible dans ce navigateur.', true);
+      return;
+    }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: { echoCancellation: true, noiseSuppression: false, autoGainControl: false },
+      });
+      const src = this.ctx.createMediaStreamSource(stream);
+      this.brancher(src);
+      this.arretDemo = () => stream.getTracks().forEach(t => t.stop());
+      State.source = 'micro';
+      toast('Micro actif — parlez, chantez, frappez dans vos mains.');
+    } catch (err) {
+      const msgs = {
+        NotAllowedError:      'Accès au micro refusé. Autorisez-le dans la barre d\u2019adresse.',
+        NotFoundError:        'Aucun microphone détecté.',
+        NotReadableError:     'Micro occupé par une autre application.',
+        OverconstrainedError: 'Micro incompatible avec les contraintes demandées.',
+        SecurityError:        'Micro indisponible (contexte non sécurisé, https requis).',
+      };
+      toast(msgs[err.name] || 'Erreur microphone : ' + err.message, true, 5000);
+    }
+  },
+
+  /** Démos synthétiques : oiseaux / bols tibétains / pluie. */
+  deme(nom) {
+    this.arreterTout();
+    const ctx = this.ctx;
+    const master = ctx.createGain();
+    master.gain.value = 0.8;
+    master.connect(ctx.destination);
+    this.brancher(master);
+    const minuteurs = [];   // timers de relance de la démo
+    const noeuds = [];      // nœuds actifs de la démo (sources + gains/filtres associés)
+    this.demoActive = { noeuds, minuteurs, master };
+
+    /** Suit une source et ses nœuds associés ; retirés de la liste à la fin de la source. */
+    const suivre = (source, ...associes) => {
+      const groupe = [source, ...associes];
+      noeuds.push(...groupe);
+      source.onended = () => {
+        groupe.forEach(n => {
+          const i = noeuds.indexOf(n);
+          if (i >= 0) noeuds.splice(i, 1);
+          try { n.disconnect(); } catch (e) {}
+        });
+      };
+    };
+
+    const bruit = ctx.createBuffer(1, ctx.sampleRate * 2, ctx.sampleRate);
+    const donnees = bruit.getChannelData(0);
+    for (let i = 0; i < donnees.length; i++) donnees[i] = Math.random() * 2 - 1;
+
+    if (nom === 'oiseaux') {
+      // Brefs chants : glissandi sinusoïdaux dans le haut du spectre
+      const chanter = () => {
+        const t0 = ctx.currentTime + 0.02;
+        const f0 = 2200 + Math.random() * 3200;
+        const duree = 0.12 + Math.random() * 0.5;
+        const osc = ctx.createOscillator(), g = ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(f0, t0);
+        osc.frequency.exponentialRampToValueAtTime(f0 * (0.7 + Math.random() * 0.9), t0 + duree);
+        g.gain.setValueAtTime(0, t0);
+        g.gain.linearRampToValueAtTime(0.5, t0 + 0.03);
+        g.gain.exponentialRampToValueAtTime(0.001, t0 + duree);
+        osc.connect(g).connect(master);
+        suivre(osc, g);
+        osc.start(t0); osc.stop(t0 + duree + 0.05);
+        minuteurs.push(setTimeout(chanter, 180 + Math.random() * 900));
+      };
+      chanter();
+      State.source = 'oiseaux';
+      toast('Démo « Oiseaux » — chants synthétiques dans l\u2019aigu.');
+    }
+
+    if (nom === 'bols') {
+      // Partiels inharmoniques à longue décroissance, relancés périodiquement
+      const fonder = (base) => {
+        const t0 = ctx.currentTime + 0.03;
+        [1, 2.76, 4.07, 5.43].forEach((rapport, i) => {
+          const osc = ctx.createOscillator(), g = ctx.createGain();
+          osc.type = 'sine';
+          osc.frequency.value = base * rapport;
+          const pic = 0.5 / (i + 1);
+          g.gain.setValueAtTime(0, t0);
+          g.gain.linearRampToValueAtTime(pic, t0 + 0.015);
+          g.gain.exponentialRampToValueAtTime(0.0005, t0 + 5 + Math.random() * 3);
+          osc.connect(g).connect(master);
+          suivre(osc, g);
+          osc.start(t0); osc.stop(t0 + 9);
+        });
+      };
+      const cycle = () => {
+        fonder(180 + Math.random() * 220);
+        minuteurs.push(setTimeout(cycle, 1600 + Math.random() * 2400));
+      };
+      cycle();
+      State.source = 'bols';
+      toast('Démo « Bols tibétains » — résonances profondes.');
+    }
+
+    if (nom === 'pluie') {
+      // Lit de bruit filtré + gouttes (impulsions de haut-parleur)
+      const lit = ctx.createBufferSource();
+      lit.buffer = bruit; lit.loop = true;
+      const passeBas = ctx.createBiquadFilter();
+      passeBas.type = 'lowpass'; passeBas.frequency.value = 1400; passeBas.Q.value = 0.4;
+      const gLit = ctx.createGain(); gLit.gain.value = 0.16;
+      lit.connect(passeBas).connect(gLit).connect(master);
+      suivre(lit, passeBas, gLit);
+      lit.start();
+      const gouttes = () => {
+        const t0 = ctx.currentTime + 0.01;
+        const impulsion = ctx.createBufferSource(); impulsion.buffer = bruit;
+        const passeHaut = ctx.createBiquadFilter();
+        passeHaut.type = 'bandpass';
+        passeHaut.frequency.value = 2500 + Math.random() * 5500;
+        passeHaut.Q.value = 9;
+        const g = ctx.createGain();
+        g.gain.setValueAtTime(0.4 + Math.random() * 0.4, t0);
+        g.gain.exponentialRampToValueAtTime(0.001, t0 + 0.06);
+        impulsion.connect(passeHaut).connect(g).connect(master);
+        suivre(impulsion, passeHaut, g);
+        impulsion.start(t0); impulsion.stop(t0 + 0.08);
+        minuteurs.push(setTimeout(gouttes, 40 + Math.random() * 260));
+      };
+      gouttes();
+      minuteurs.push(0); // ancre
+      State.source = 'pluie';
+      toast('Démo « Pluie » — rideau de bruit et gouttes.');
+    }
+
+    // L'arrêt (nœuds + timers) est géré par arreterTout() via this.demoActive
+  },
+
+  /** Lecture d'un fichier (input ou drag & drop). */
+  async fichier(fichier) {
+    if (!fichier) return;
+    this.arreterTout();
+    try {
+      const tampon = await fichier.arrayBuffer();
+      this.bufferFichier = await this.ctx.decodeAudioData(tampon);
+      this.lireBuffer();
+      State.source = 'fichier';
+      toast('Lecture : ' + fichier.name);
+    } catch (err) {
+      toast('Fichier audio illisible : ' + (err.message || err), true, 5000);
+    }
+  },
+
+  lireBuffer() {
+    if (!this.bufferFichier) return;
+    if (this.sourceFichier) { try { this.sourceFichier.stop(); } catch (e) {} }
+    const src = this.ctx.createBufferSource();
+    src.buffer = this.bufferFichier;
+    src.connect(this.ctx.destination);
+    this.brancher(src);
+    src.start();
+    this.sourceFichier = src;
+  },
+
+  /** Notes clavier A–Z : gamme pentatonique ascendante. */
+  noteClavier(touche) {
+    this.arreterTout();
+    const indice = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.indexOf(touche.toUpperCase());
+    if (indice < 0) return;
+    const gamme = [0, 3, 5, 7, 10];           // pentatonique mineure
+    const degre = gamme[indice % gamme.length];
+    const octave = Math.floor(indice / gamme.length);
+    const freq = 220 * Math.pow(2, (degre + octave * 12) / 12);
+    const ctx = this.ctx, t0 = ctx.currentTime;
+    const osc = ctx.createOscillator(), g = ctx.createGain();
+    osc.type = 'triangle';
+    osc.frequency.value = freq;
+    g.gain.setValueAtTime(0, t0);
+    g.gain.linearRampToValueAtTime(0.7, t0 + 0.01);
+    g.gain.exponentialRampToValueAtTime(0.001, t0 + 1.6);
+    const master = ctx.createGain(); master.gain.value = 1;
+    osc.connect(g).connect(master);
+    this.brancher(master);
+    master.connect(ctx.destination);
+    osc.start(t0); osc.stop(t0 + 1.7);
+    State.source = 'clavier';
+    State.frequency = freq;                    // injection immédiate
+    State.injection.strength = Math.max(State.injection.strength, 0.7);
+  },
+};
+
+/* ==================== ANALYSE ==================== */
+const Analyse = {
+  freq: null,   // Uint8Array — spectre
+  temp: null,   // Uint8Array — domaine temporel
+
+  init(analyser) {
+    this.fftSize = analyser.fftSize;   // utilisé pour la conversion bin → Hz
+    this.freq = new Uint8Array(analyser.frequencyBinCount);
+    this.temp = new Uint8Array(analyser.fftSize);
+  },
+
+  /** Fréquence dominante + interpolation parabolique (Hz). */
+  frequenceDominante(taux) {
+    const n = this.freq.length;
+    let maxI = 0, maxV = 0;
+    const binMin = Math.max(2, Math.floor(FREQUENCE_MIN * Analyse.fftSize / taux));
+    const binMax = Math.min(n - 2, Math.ceil(FREQUENCE_MAX * Analyse.fftSize / taux));
+    for (let i = binMin; i <= binMax; i++) {
+      if (this.freq[i] > maxV) { maxV = this.freq[i]; maxI = i; }
+    }
+    if (maxV < 8) return 0;                    // silence → 0
+    // Interpolation parabolique sur les voisins (en échelle linéaire)
+    const gauche = this.freq[maxI - 1], droite = this.freq[maxI + 1];
+    const denom = (gauche - 2 * maxV + droite);
+    const decalage = denom !== 0 ? (0.5 * (gauche - droite)) / denom : 0;
+    return (maxI + clamp(decalage, -0.5, 0.5)) * taux / Analyse.fftSize;
+  },
+
+  /** RMS du domaine temporel, normalisé 0–1. */
+  rms() {
+    let somme = 0;
+    for (let i = 0; i < this.temp.length; i++) {
+      const v = (this.temp[i] - 128) / 128;
+      somme += v * v;
+    }
+    return clamp(Math.sqrt(somme / this.temp.length) * 3.2, 0, 1); // facteur d'étalonnage
+  },
+
+  /** Étalement spectral : écart-type des log-fréquences pondéré par magnitude, 0–1. */
+  etalement(taux) {
+    const n = this.freq.length;
+    const binMin = Math.max(2, Math.floor(FREQUENCE_MIN * Analyse.fftSize / taux));
+    const binMax = Math.min(n - 1, Math.ceil(FREQUENCE_MAX * Analyse.fftSize / taux));
+    let sommeW = 0, sommeX = 0, sommeX2 = 0;
+    for (let i = binMin; i <= binMax; i++) {
+      const w = this.freq[i] / 255;
+      if (w < 0.02) continue;
+      const x = Math.log2((i + 1) * taux / Analyse.fftSize); // log2 Hz
+      sommeW += w; sommeX += w * x; sommeX2 += w * x * x;
+    }
+    if (sommeW < 0.05) return 0;
+    const moyenne = sommeX / sommeW;
+    const variance = Math.max(0, sommeX2 / sommeW - moyenne * moyenne);
+    // étalonnage : 1 octave de σ ≈ 0.6, plafonné
+    return clamp(Math.sqrt(variance) / 1.7, 0, 1);
+  },
+};
+
+/* ==================== UI ==================== */
+const UI = {
+  /** Table de correspondance réglages → éléments DOM. */
+  REGLAGES: [
+    { cle: 'viscosite', id: 'r-viscosite', vid: 'v-viscosite', format: v => v + ' %' },
+    { cle: 'amplitude', id: 'r-amplitude', vid: 'v-amplitude', format: v => v + ' %' },
+    { cle: 'rapidite',  id: 'r-rapidite',  vid: 'v-rapidite',  format: v => v + ' %' },
+    { cle: 'resolution', id: 'r-resolution', vid: 'v-resolution', format: v => v + ' px' },
+    { cle: 'force',     id: 'r-force',     vid: 'v-force',     format: v => v + ' %' },
+    { cle: 'grain',     id: 'r-grain',     vid: 'v-grain',     format: v => v + ' %' },
+    { cle: 'vignette',  id: 'r-vignette',  vid: 'v-vignette',  format: v => v + ' %' },
+  ],
+
+  init() {
+    this.initModes();
+    this.initReglages();
+    this.initSymetrie();
+    this.initPresets();
+    this.initSources();
+    this.initGelerRespirer();
+    this.initPanneau();
+    this.initFichier();
+    this.appliquerHash();
+  },
+
+  initModes() {
+    const select = $('#mode');
+    MODES_FLUIDES.forEach((nom, i) => {
+      const opt = document.createElement('option');
+      opt.value = i; opt.textContent = nom;
+      select.appendChild(opt);
+    });
+    select.value = State.mode;
+    select.addEventListener('change', () => {
+      State.mode = parseInt(select.value, 10);
+      toast('Mode fluide : ' + MODES_FLUIDES[State.mode]);
+    });
+  },
+
+  /** Lie chaque slider au State.settings, avec remplissage visuel. */
+  initReglages() {
+    this.REGLAGES.forEach(({ cle, id, vid, format }) => {
+      const input = $('#' + id), label = $('#' + vid);
+      input.value = State.settings[cle];
+      const maj = () => {
+        const v = parseFloat(input.value);
+        State.settings[cle] = v;
+        label.textContent = format(v);
+        input.style.setProperty('--remplissage',
+          ((v - input.min) / (input.max - input.min) * 100) + '%');
+      };
+      input.addEventListener('input', maj);
+      maj();
+    });
+  },
+
+  initSymetrie() {
+    const sw = $('#s-symetrie');
+    sw.setAttribute('aria-checked', String(State.settings.symetrie));
+    sw.addEventListener('click', () => {
+      State.settings.symetrie = !State.settings.symetrie;
+      sw.setAttribute('aria-checked', String(State.settings.symetrie));
+    });
+  },
+
+  initPresets() {
+    const zone = $('#presets');
+    Object.entries(PRESETS).forEach(([nom, p]) => {
+      const b = document.createElement('button');
+      b.className = 'preset'; b.textContent = nom;
+      b.addEventListener('click', () => this.appliquerPreset(nom, p));
+      zone.appendChild(b);
+    });
+  },
+
+  appliquerPreset(nom, p) {
+    Object.assign(State.settings, {
+      viscosite: p.viscosite, amplitude: p.amplitude, rapidite: p.rapidite,
+      resolution: p.resolution, force: p.force, symetrie: p.symetrie,
+      grain: p.grain, vignette: p.vignette,
+    });
+    State.mode = p.mode;
+    State.color = [p.h, p.s, p.v];
+    $('#mode').value = p.mode;
+    $('#s-symetrie').setAttribute('aria-checked', String(p.symetrie));
+    this.REGLAGES.forEach(({ cle, id, vid, format }) => {
+      const input = $('#' + id);
+      input.value = State.settings[cle];
+      input.dispatchEvent(new Event('input'));
+    });
+    this.appliquerRendu();
+    toast('Thème « ' + nom + ' » appliqué.');
+  },
+
+  /** Grain & vignette sont des couches CSS pilotées par les réglages. */
+  appliquerRendu() {
+    $('#grain').style.opacity = (State.settings.grain / 100 * 0.14).toFixed(3);
+    const v = State.settings.vignette / 100;
+    $('#vignette').style.background =
+      'radial-gradient(ellipse 120% 90% at 50% 45%, transparent ' +
+      Math.round(80 - v * 45) + '%, rgba(0,0,0,' + (0.25 + v * 0.6).toFixed(2) + ') 100%)';
+  },
+
+  initSources() {
+    $$('#sources .chip').forEach(chip => {
+      chip.addEventListener('click', () => this.choisirSource(chip.dataset.source));
+    });
+  },
+
+  async choisirSource(source) {
+    Audio.assurerContexte();
+    switch (source) {
+      case 'micro':    Audio.micro(); break;
+      case 'oiseaux':
+      case 'bols':
+      case 'pluie':    Audio.deme(source); break;
+      case 'fichier':  $('#fichier').click(); return; // source réglée après lecture
+      case 'clavier':  Audio.arreterTout(); toast('Clavier actif — tapez les touches A à Z.'); State.source = 'clavier'; break;
+    }
+    this.majSelectionSource(source);
+  },
+
+  majSelectionSource(source) {
+    $$('#sources .chip').forEach(c =>
+      c.setAttribute('aria-pressed', String(c.dataset.source === source)));
+    const actif = source !== null;
+    $('#label-source').classList.toggle('actif', actif);
+    $('#label-source-texte').textContent = actif ? 'source : ' + source : 'aucune source';
+  },
+
+  initGelerRespirer() {
+    const bg = $('#btn-geler'), br = $('#btn-respirer');
+    bg.addEventListener('click', () => {
+      State.geler = !State.geler;
+      bg.setAttribute('aria-pressed', String(State.geler));
+      bg.textContent = State.geler ? 'Dégeler' : 'Geler';
+      toast(State.geler ? 'Simulation gelée.' : 'Simulation relancée.');
+    });
+    br.addEventListener('click', () => {
+      State.respirer = !State.respirer;
+      br.setAttribute('aria-pressed', String(State.respirer));
+      toast(State.respirer ? 'Respiration automatique activée.' : 'Respiration désactivée.');
+    });
+  },
+
+  initPanneau() {
+    const btn = $('#btn-reglages'), panneau = $('#panneau');
+    btn.addEventListener('click', () => {
+      const ouvert = panneau.classList.toggle('ouvert');
+      btn.setAttribute('aria-expanded', String(ouvert));
+      panneau.setAttribute('aria-hidden', String(!ouvert));
+    });
+    document.addEventListener('keydown', e => {
+      if (e.key === 'Escape' && panneau.classList.contains('ouvert')) {
+        panneau.classList.remove('ouvert');
+        btn.setAttribute('aria-expanded', 'false');
+        panneau.setAttribute('aria-hidden', 'true');
+        btn.focus();
+      }
+    });
+  },
+
+  initFichier() {
+    $('#fichier').addEventListener('change', e => {
+      Audio.assurerContexte();
+      Audio.fichier(e.target.files[0]);
+      this.majSelectionSource('fichier');
+      e.target.value = '';
+    });
+    // Drag & drop sur tout l'écran
+    let compteur = 0;
+    window.addEventListener('dragenter', e => { e.preventDefault(); if (++compteur === 1) toast('Déposez votre fichier audio…'); });
+    window.addEventListener('dragleave', e => { e.preventDefault(); if (--compteur <= 0) compteur = 0; });
+    window.addEventListener('dragover',  e => e.preventDefault());
+    window.addEventListener('drop', e => {
+      e.preventDefault(); compteur = 0;
+      const f = e.dataTransfer.files && e.dataTransfer.files[0];
+      if (!f) return;
+      if (!f.type.startsWith('audio')) { toast('Ce fichier n\u2019est pas un audio.', true); return; }
+      Audio.assurerContexte();
+      Audio.fichier(f);
+      this.majSelectionSource('fichier');
+    });
+    // Clavier A–Z (uniquement quand la source clavier est active et pas de champ focalisé)
+    document.addEventListener('keydown', e => {
+      if (State.source !== 'clavier') return;
+      if (e.target.matches('input, select, textarea, button')) return;
+      if (/^[a-z]$/i.test(e.key)) {
+        Audio.assurerContexte();
+        Audio.noteClavier(e.key);
+      }
+    });
+  },
+
+  /** Partage URL : #v=viscosite,a,…&mode=… — restauré au chargement. */
+  appliquerHash() {
+    if (!location.hash || location.hash.length < 2) return;
+    try {
+      const params = new URLSearchParams(location.hash.slice(1));
+      if (params.has('v')) {
+        const [visc, amp, rap, res, forc] = params.get('v').split(',').map(Number);
+        Object.assign(State.settings, {
+          viscosite: clamp(visc || 62, 0, 100), amplitude: clamp(amp || 70, 0, 100),
+          rapidite: clamp(rap || 30, 0, 100), resolution: clamp(res || 256, 64, 512),
+          force: clamp(forc || 60, 0, 100),
+        });
+      }
+      if (params.has('mode')) State.mode = clamp(parseInt(params.get('mode'), 10) || 0, 0, MODES_FLUIDES.length - 1);
+      if (params.has('s')) State.settings.symetrie = params.get('s') === '1';
+      $('#mode').value = State.mode;
+      $('#s-symetrie').setAttribute('aria-checked', String(State.settings.symetrie));
+      this.REGLAGES.forEach(({ cle, id }) => {
+        const input = $('#' + id);
+        input.value = State.settings[cle];
+        input.dispatchEvent(new Event('input'));
+      });
+    } catch (e) { /* hash malformé : on ignore */ }
+  },
+};
+
+/* ==================== INTERACTIONS ==================== */
+const Interactions = {
+  dernierTouche: 0,
+
+  init(canvas) {
+    // Souris / tactile : injection normalisée dans le State
+    const pointer = e => {
+      const r = canvas.getBoundingClientRect();
+      State.injection.x = clamp((e.clientX - r.left) / r.width, 0, 1);
+      State.injection.y = clamp(1 - (e.clientY - r.top) / r.height, 0, 1);
+      State.injection.strength = Math.max(State.injection.strength, 0.9);
+    };
+    canvas.addEventListener('pointerdown', pointer);
+    canvas.addEventListener('pointermove', e => { if (e.buttons || e.pointerType === 'touch') pointer(e); });
+    canvas.addEventListener('pointerup',   () => { State.injection.strength = 0; });
+
+    // Molette : sensibilité d'injection
+    canvas.addEventListener('wheel', e => {
+      e.preventDefault();
+      const sens = State.settings.sensibilite / 100;      // 0–1
+      const delta = -Math.sign(e.deltaY) * (0.15 + sens * 0.85);
+      State.injection.strength = clamp(State.injection.strength + delta * 0.4, 0, 1);
+      State.injection.x = clamp(e.clientX / innerWidth, 0, 1);
+      State.injection.y = clamp(1 - e.clientY / innerHeight, 0, 1);
+    }, { passive: false });
+
+    // Double-tap : plein écran
+    canvas.addEventListener('pointerdown', () => {
+      const maintenant = performance.now();
+      if (maintenant - this.dernierTouche < 320) {
+        if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
+        else document.documentElement.requestFullscreen().catch(() => {});
+      }
+      this.dernierTouche = maintenant;
+    });
+  },
+};
+
+/* ==================== CAPTURE ==================== */
+const Capture = {
+  enregistreur: null,
+
+  /** Export PNG à 2× le DPR via le canvas fourni par Fluid.capture(). */
+  png() {
+    const brut = (window.Fluid && Fluid.capture) ? Fluid.capture() : $('#scene');
+    // brut.width est déjà en pixels physiques : la cible se calcule depuis la taille CSS
+    const dpr = Math.min(devicePixelRatio || 1, DPR_MAX) * 2;
+    const largeurCss = brut.clientWidth || innerWidth, hauteurCss = brut.clientHeight || innerHeight;
+    const reduction = Math.min(1, 8192 / Math.max(largeurCss * dpr, hauteurCss * dpr)); // plafond 8192 px par côté
+    const copie = document.createElement('canvas');
+    copie.width  = Math.round(largeurCss * dpr * reduction);
+    copie.height = Math.round(hauteurCss * dpr * reduction);
+    const ctx = copie.getContext('2d');
+    ctx.drawImage(brut, 0, 0, copie.width, copie.height);
+    copie.toBlob(blob => {
+      if (!blob) { toast('Export PNG impossible.', true); return; }
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'onde-liquide-' + Date.now() + '.png';
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+      toast('Image PNG exportée (×2 DPR).');
+    }, 'image/png');
+  },
+
+  /** Clip WebM de 10 s via MediaRecorder sur le flux du canvas. */
+  webm() {
+    if (this.enregistreur) { toast('Un enregistrement est déjà en cours.', true); return; }
+    const canvas = $('#scene');
+    if (!canvas.captureStream || typeof MediaRecorder === 'undefined') {
+      toast('MediaRecorder non supporté par ce navigateur.', true); return;
+    }
+    const flux = canvas.captureStream(60);
+    const types = ['video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm'];
+    const mime = types.find(t => MediaRecorder.isTypeSupported(t)) || '';
+    let morceaux = [];
+    let rec;
+    try {
+      rec = new MediaRecorder(flux, mime ? { mimeType: mime, videoBitsPerSecond: 8_000_000 } : undefined);
+    } catch (err) {
+      toast('Impossible de démarrer l\u2019enregistrement : ' + err.message, true); return;
+    }
+    this.enregistreur = rec;
+    rec.ondataavailable = e => { if (e.data.size) morceaux.push(e.data); };
+    rec.onstop = () => {
+      flux.getTracks().forEach(t => t.stop());
+      const blob = new Blob(morceaux, { type: 'video/webm' });
+      morceaux = [];
+      this.enregistreur = null;
+      if (blob.size < 200) { toast('Clip vide : le moteur WebGL doit dessiner sur ce canvas.', true); return; }
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'onde-liquide-' + Date.now() + '.webm';
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+      toast('Clip WebM de 10 s téléchargé.');
+    };
+    rec.onerror = () => { toast('Erreur pendant l\u2019enregistrement.', true); this.enregistreur = null; };
+    rec.start(250);
+    toast('Enregistrement 10 s…');
+    setTimeout(() => { if (this.enregistreur && this.enregistreur.state !== 'inactive') this.enregistreur.stop(); }, DUREE_CLIP_MS);
+  },
+
+  /** Partage : copie un lien #hash encodant la configuration. */
+  async partage() {
+    const s = State.settings;
+    const hash = '#v=' + [s.viscosite, s.amplitude, s.rapidite, s.resolution, s.force].join(',')
+               + '&mode=' + State.mode + '&s=' + (s.symetrie ? '1' : '0');
+    const url = location.origin + location.pathname + hash;
+    try {
+      await navigator.clipboard.writeText(url);
+      toast('Lien de configuration copié.');
+    } catch (e) {
+      window.prompt('Copiez ce lien :', url);
+    }
+  },
+};
+
+/* ==================== ONBOARDING ==================== */
+const Onboarding = {
+  init() {
+    const modale = $('#onboarding'), btn = $('#entrer');
+    const reduire = () => {
+      modale.classList.add('sorti');
+      setTimeout(() => modale.remove(), 900);
+      Audio.assurerContexte();
+    };
+    if (REDUCED_MOTION) {
+      // Sans animation : on coupe les keyframes via durée nulle et on affiche direct
+      ['#goutte', '#onde', '#titre-onboarding', '#sous-titre-onboarding', '#entrer']
+        .forEach(sel => { $(sel).style.animation = 'none'; $(sel).style.opacity = '1'; $(sel).style.transform = 'none'; });
+    }
+    btn.addEventListener('click', reduire);
+    modale.addEventListener('keydown', e => { if (e.key === 'Enter') reduire(); });
+  },
+};
+
+/* ==================== BOUCLE ==================== */
+const Boucle = {
+  dernierT: 0,
+  temps: 0,
+  dernierFreqMaj: 0,
+
+  /** Spectre → State (fréquence dominante, RMS, spread, couleur). */
+  analyserAudio(dt) {
+    const an = Audio.analyser;
+    if (!an) { this.eteindre(dt); return; }
+    an.getByteFrequencyData(Analyse.freq);
+    an.getByteTimeDomainData(Analyse.temp);
+    const taux = Audio.ctx.sampleRate;
+    const freqCible = Analyse.frequenceDominante(taux);
+    const rms = Analyse.rms();
+    const spread = Analyse.etalement(taux);
+
+    if (State.respirer && !State.source) {
+      // Respiration automatique : LFO lent quand aucune source n'est active
+      this.temps += dt;
+      State.level = adoucir(State.level, 0.35 + 0.3 * Math.sin(this.temps * 0.9), 4, dt);
+      if (freqCible === 0) {
+        const h = (this.temps * 12) % 360;
+        State.color = [h, 0.7, 0.9];
+        State.frequency = adoucir(State.frequency, 1500 + 900 * Math.sin(this.temps * 0.23), 3, dt);
+        State.spread = adoucir(State.spread, 0.4 + 0.25 * Math.sin(this.temps * 0.5), 3, dt);
+      }
+    } else {
+      State.frequency = freqCible > 0 ? adoucir(State.frequency, freqCible, 8, dt) : adoucir(State.frequency, FREQUENCE_MIN, 2, dt);
+      State.level = adoucir(State.level, rms, 10, dt);
+      State.spread = adoucir(State.spread, spread, 5, dt);
+    }
+
+    // Fréquence → tranche → couleur HSV
+    if (freqCible > 0) {
+      const f = clamp(freqCible, FREQUENCE_MIN, FREQUENCE_MAX);
+      for (const t of TRANCHES) {
+        if (f >= t.min && f <= t.max) {
+          const k = (f - t.min) / (t.max - t.min);
+          const i = TRANCHES.indexOf(t);
+          const prochaine = TRANCHES[Math.min(i + 1, TRANCHES.length - 1)];
+          const melange = i < TRANCHES.length - 1 ? clamp((k - 0.75) / 0.25, 0, 1) : 0;
+          State.color = [
+            lerp(t.hsv[0], prochaine.hsv[0], melange),
+            lerp(t.hsv[1], prochaine.hsv[1], melange),
+            lerp(t.hsv[2], prochaine.hsv[2], melange),
+          ];
+          break;
+        }
+      }
+    }
+
+    // Lissage de la couleur (wrap circulaire sur la teinte)
+    const [h, s, v] = State.color;
+    let dh = ((h - State.colorLisse[0] + 540) % 360) - 180;
+    State.colorLisse[0] = (State.colorLisse[0] + dh * (1 - Math.exp(-6 * dt)) + 360) % 360;
+    State.colorLisse[1] = adoucir(State.colorLisse[1], s, 6, dt);
+    State.colorLisse[2] = adoucir(State.colorLisse[2], v, 6, dt);
+  },
+
+  /** Fondu vers le noir quand tout est silencieux. */
+  eteindre(dt) {
+    State.level = adoucir(State.level, 0, 3, dt);
+    State.spread = adoucir(State.spread, 0, 3, dt);
+    State.injection.strength = adoucir(State.injection.strength, 0, 3, dt);
+  },
+
+  tick(t) {
+    requestAnimationFrame(this.tick.bind(this));
+    const dt = clamp((t - this.dernierT) / 1000, 0, 0.05);
+    this.dernierT = t;
+
+    if (t - this.dernierFreqMaj > 80) {
+      this.dernierFreqMaj = t;
+      var f_ = State.frequency;
+      document.getElementById('freq-valeur').textContent = f_ > 0 ? Math.round(f_).toLocaleString('fr-FR') : '\u2014';
+      var rgb = hsv2rgb(State.colorLisse[0], State.colorLisse[1], State.colorLisse[2]);
+      document.getElementById('frequence').style.color = 'rgb(' + ((rgb[0]*255)|0) + ',' + ((rgb[1]*255)|0) + ',' + ((rgb[2]*255)|0) + ')';
+    }
+
+    if (!State.geler) {
+      this.analyserAudio(dt);
+      // Décroissance naturelle de l'injection tactile
+      if (State.injection.strength > 0 && !Interactions.pointActif) {
+        State.injection.strength = adoucir(State.injection.strength, 0, 4, dt);
+      }
+      if (window.FluidReady) Fluid.update(State, dt);
+    }
+    if (window.FluidReady) Fluid.render(State);
+  },
+
+  demarrer() {
+    this.dernierT = performance.now();
+    requestAnimationFrame(this.tick.bind(this));
+  },
+};
+
+/* Interactions : mémorise si un pointeur est pressé (pour ne pas
+   éteindre l'injection pendant le contact). */
+Interactions.pointActif = false;
+
+/* ==================== MOTEUR WEBGL 2 — FLUIDE ====================
+   Navier-Stokes simplifié sur GPU (approche Pavel Dobryakov) :
+   injection → rotationnel → confinement de vorticité → forces de mode
+   → divergence → pression (Jacobi) → soustraction du gradient → advection.
+   Contrat exposé (défini une seule fois, en fin d'IIFE) :
+   Fluid { init, update, render, resize, capture }
+   - init(canvas, opts)  : contexte WebGL 2, programmes, FBO
+   - update(state, dt)   : injections + un pas de simulation
+   - render(state)       : densité → normales → Blinn-Phong + Fresnel
+   - resize()            : recalcule les dimensions (DPR plafonné)
+   - capture()           : renvoie le canvas pour l'export PNG
+   Les fonctions internes s'appellent directement entre elles (jamais
+   via l'objet public) pour éviter toute récursion.
+   ============================================================ */
+(function moteurFluide() {
+  window.FluidReady = false;
+
+  /* ---------- Constantes du moteur ---------- */
+  const DT_MAX = 1 / 30;                  // pas de temps maximal (onglet réveillé, frame lente)
+  const ITERATIONS_PRESSION = 20;         // Jacobi, mode normal
+  const ITERATIONS_PRESSION_ECONOME = 10; // Jacobi, mode économe (mobile / GPU lent)
+  const DISSIPATION_PRESSION = 0.8;       // la pression de la frame précédente sert d'amorce
+  const PLAFOND_DENSITE = 6;              // évite la saturation de la densité
+  const RESOLUTION_REF = 256;             // résolution de référence pour l'échelle des vitesses
+  const CURL_PAR_MODE = [20, 5, 38, 22, 28]; // Encre, Lave, Nébuleuse, Aurora, Galaxie
+  const FOND = [0.006, 0.006, 0.009];     // noir profond (jamais transparent)
+  const ATTRIBUTS_CONTEXTE = { alpha: false, antialias: false, premultipliedAlpha: false, preserveDrawingBuffer: true };
+
+  /* ---------- État interne ---------- */
+  let canvas = null;
+  let gl = null;
+  let options = {};
+  let econome = false;          // mode économe : moins d'itérations, résolutions plafonnées
+  let lineaire = true;          // filtrage linéaire matériel disponible ?
+  let formats = null;           // { type, r, rg, rgba } formats flottants rendables
+  let quad = null;              // VAO du quad plein écran
+  let P = null;                 // programmes compilés
+  let velocite = null, densite = null, pression = null; // FBO doubles (ping-pong)
+  let divergence = null, rotationnel = null;            // FBO simples
+  let resolutionCourante = 0;   // settings.resolution appliquée
+  let temps = 0;                // temps de simulation (s)
+  let dtMoyen = 1 / 60, dureeLente = 0;                 // surveillance des performances
+  let precX = 0.5, precY = 0.5, precForce = 0;          // injection de la frame précédente
+  let dernierEtat = null;
+  let ecouteursPoses = false;
+
+  const clamp01 = v => Math.min(1, Math.max(0, v || 0));
+
+  /* =================== 1. SHADERS =================== */
+
+  // En-tête des fragment shaders : GLSL ES 3.00, précision haute,
+  // + FILTRAGE_MANUEL si les textures flottantes ne sont pas filtrables.
+  const enteteFragment = () =>
+    '#version 300 es\nprecision highp float;\nprecision highp sampler2D;\n' +
+    (lineaire ? '' : '#define FILTRAGE_MANUEL\n');
+
+  // Vertex shader commun : quad plein écran + coordonnées des voisins
+  const SOURCE_VERTEX = `#version 300 es
+precision highp float;
+layout(location = 0) in vec2 aPosition;
+uniform vec2 texelSize;
+out vec2 vUv;
+out vec2 vL;
+out vec2 vR;
+out vec2 vT;
+out vec2 vB;
+void main () {
+  vUv = aPosition * 0.5 + 0.5;
+  vL = vUv - vec2(texelSize.x, 0.0);
+  vR = vUv + vec2(texelSize.x, 0.0);
+  vT = vUv + vec2(0.0, texelSize.y);
+  vB = vUv - vec2(0.0, texelSize.y);
+  gl_Position = vec4(aPosition, 0.0, 1.0);
+}`;
+
+  // Échantillonnage : matériel si possible, sinon interpolation bilinéaire manuelle
+  const GLSL_ECHANTILLON = `
+vec4 echantillon (sampler2D tex, vec2 uv, vec2 texel) {
+#ifdef FILTRAGE_MANUEL
+  vec2 st = uv / texel - 0.5;
+  vec2 i = floor(st);
+  vec2 f = fract(st);
+  vec4 a = texture(tex, (i + vec2(0.5, 0.5)) * texel);
+  vec4 b = texture(tex, (i + vec2(1.5, 0.5)) * texel);
+  vec4 c = texture(tex, (i + vec2(0.5, 1.5)) * texel);
+  vec4 d = texture(tex, (i + vec2(1.5, 1.5)) * texel);
+  return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
+#else
+  return texture(tex, uv);
+#endif
+}
+`;
+
+  // Copie (rééchantillonnage lors d'un changement de résolution)
+  const FS_COPIE = `
+in vec2 vUv;
+uniform sampler2D uTexture;
+uniform vec2 uTexelSource;
+out vec4 fragColor;
+void main () {
+  fragColor = echantillon(uTexture, vUv, uTexelSource);
+}`;
+
+  // Dissipation : multiplie un champ par un facteur (amorce de la pression)
+  const FS_DISSIPATION = `
+in vec2 vUv;
+uniform sampler2D uTexture;
+uniform float uValeur;
+out vec4 fragColor;
+void main () {
+  fragColor = uValeur * texture(uTexture, vUv);
+}`;
+
+  // Injection : ajoute une couleur (ou une vitesse) pondérée par un noyau gaussien
+  const FS_INJECTION = `
+in vec2 vUv;
+uniform sampler2D uCible;
+uniform float uAspect;
+uniform vec2 uPoint;
+uniform vec4 uCouleur;
+uniform float uRayon;
+uniform float uPlafond;
+out vec4 fragColor;
+void main () {
+  vec2 p = vUv - uPoint;
+  p.x *= uAspect;                          // distance isotrope à l'écran
+  float g = exp(-dot(p, p) / uRayon);      // noyau gaussien
+  vec4 base = texture(uCible, vUv);
+  fragColor = clamp(base + uCouleur * g, -uPlafond, uPlafond);
+}`;
+
+  // Advection semi-lagrangienne : on remonte le courant puis on échantillonne
+  const FS_ADVECTION = `
+in vec2 vUv;
+uniform sampler2D uVelocite;
+uniform sampler2D uSource;
+uniform vec2 texelSize;
+uniform vec2 uTexelSource;
+uniform float dt;
+uniform float uDissipation;
+out vec4 fragColor;
+void main () {
+  vec2 coord = vUv - dt * echantillon(uVelocite, vUv, texelSize).xy * texelSize;
+  vec4 resultat = echantillon(uSource, coord, uTexelSource);
+  fragColor = resultat / (1.0 + uDissipation * dt);
+}`;
+
+  // Divergence du champ de vitesse (parois réfléchissantes sur les bords)
+  const FS_DIVERGENCE = `
+in vec2 vUv;
+in vec2 vL;
+in vec2 vR;
+in vec2 vT;
+in vec2 vB;
+uniform sampler2D uVelocite;
+out vec4 fragColor;
+void main () {
+  float L = texture(uVelocite, vL).x;
+  float R = texture(uVelocite, vR).x;
+  float T = texture(uVelocite, vT).y;
+  float B = texture(uVelocite, vB).y;
+  vec2 C = texture(uVelocite, vUv).xy;
+  if (vL.x < 0.0) { L = -C.x; }
+  if (vR.x > 1.0) { R = -C.x; }
+  if (vT.y > 1.0) { T = -C.y; }
+  if (vB.y < 0.0) { B = -C.y; }
+  float div = 0.5 * (R - L + T - B);
+  fragColor = vec4(div, 0.0, 0.0, 1.0);
+}`;
+
+  // Rotationnel (composante z du curl 2D)
+  const FS_ROTATIONNEL = `
+in vec2 vUv;
+in vec2 vL;
+in vec2 vR;
+in vec2 vT;
+in vec2 vB;
+uniform sampler2D uVelocite;
+out vec4 fragColor;
+void main () {
+  float L = texture(uVelocite, vL).y;
+  float R = texture(uVelocite, vR).y;
+  float T = texture(uVelocite, vT).x;
+  float B = texture(uVelocite, vB).x;
+  fragColor = vec4(0.5 * (R - L - T + B), 0.0, 0.0, 1.0);
+}`;
+
+  // Confinement de vorticité : réinjecte l'énergie des petits tourbillons
+  const FS_VORTICITE = `
+in vec2 vUv;
+in vec2 vL;
+in vec2 vR;
+in vec2 vT;
+in vec2 vB;
+uniform sampler2D uVelocite;
+uniform sampler2D uRotationnel;
+uniform float uCurl;
+uniform float dt;
+out vec4 fragColor;
+void main () {
+  float L = texture(uRotationnel, vL).x;
+  float R = texture(uRotationnel, vR).x;
+  float T = texture(uRotationnel, vT).x;
+  float B = texture(uRotationnel, vB).x;
+  float C = texture(uRotationnel, vUv).x;
+  vec2 force = 0.5 * vec2(abs(T) - abs(B), abs(R) - abs(L));
+  force /= length(force) + 0.0001;
+  force *= uCurl * C;
+  force.y *= -1.0;
+  vec2 v = texture(uVelocite, vUv).xy + force * dt;
+  v = clamp(v, -1000.0, 1000.0);
+  fragColor = vec4(v, 0.0, 1.0);
+}`;
+
+  // Forces propres à chaque mode (Lave, Nébuleuse, Aurora, Galaxie)
+  const FS_FORCES = `
+in vec2 vUv;
+uniform sampler2D uVelocite;
+uniform sampler2D uDensite;
+uniform int uMode;
+uniform float uTemps;
+uniform float dt;
+uniform float uAspect;
+uniform float uEchelle;
+uniform float uIntensite;
+out vec4 fragColor;
+void main () {
+  vec2 v = texture(uVelocite, vUv).xy;
+  float d = texture(uDensite, vUv).a;
+  vec2 p = (vUv - 0.5) * vec2(uAspect, 1.0);
+  vec2 f = vec2(0.0);
+  if (uMode == 1) {
+    // Lave : poussée d'Archimède, la matière dense et chaude monte
+    f.y += min(d, 3.0) * 45.0;
+  } else if (uMode == 2) {
+    // Nébuleuse : turbulence lente par champ sinusoïdal
+    f += vec2(sin(vUv.y * 13.0 + uTemps * 0.7), cos(vUv.x * 11.0 - uTemps * 0.55)) * 22.0;
+  } else if (uMode == 3) {
+    // Aurora : vent horizontal en bandes + légère ascension
+    f.x += sin(vUv.y * 9.0 + uTemps * 0.6) * 34.0;
+    f.y += 8.0 * min(d, 2.0);
+  } else if (uMode == 4) {
+    // Galaxie : rotation différentielle autour du centre + aspiration douce
+    float r = length(p);
+    vec2 t = vec2(-p.y, p.x) / (r + 0.12);
+    f += (t * 70.0 - p * 35.0) * smoothstep(0.95, 0.05, r);
+  }
+  fragColor = vec4(v + f * uEchelle * uIntensite * dt, 0.0, 1.0);
+}`;
+
+  // Pression : une itération de Jacobi
+  const FS_PRESSION = `
+in vec2 vUv;
+in vec2 vL;
+in vec2 vR;
+in vec2 vT;
+in vec2 vB;
+uniform sampler2D uPression;
+uniform sampler2D uDivergence;
+out vec4 fragColor;
+void main () {
+  float L = texture(uPression, vL).x;
+  float R = texture(uPression, vR).x;
+  float T = texture(uPression, vT).x;
+  float B = texture(uPression, vB).x;
+  float div = texture(uDivergence, vUv).x;
+  fragColor = vec4((L + R + B + T - div) * 0.25, 0.0, 0.0, 1.0);
+}`;
+
+  // Soustraction du gradient de pression : rend le champ incompressible
+  const FS_GRADIENT = `
+in vec2 vUv;
+in vec2 vL;
+in vec2 vR;
+in vec2 vT;
+in vec2 vB;
+uniform sampler2D uPression;
+uniform sampler2D uVelocite;
+out vec4 fragColor;
+void main () {
+  float L = texture(uPression, vL).x;
+  float R = texture(uPression, vR).x;
+  float T = texture(uPression, vT).x;
+  float B = texture(uPression, vB).x;
+  vec2 v = texture(uVelocite, vUv).xy - vec2(R - L, T - B);
+  fragColor = vec4(v, 0.0, 1.0);
+}`;
+
+  // Rendu final : densité → hauteur → normales → Blinn-Phong + Fresnel
+  const FS_AFFICHAGE = `
+in vec2 vUv;
+uniform sampler2D uDensite;
+uniform vec2 texelSize;
+uniform float uTemps;
+uniform float uBruit;
+uniform float uGrain;
+uniform float uVignette;
+uniform float uSymetrie;
+uniform float uRelief;
+uniform float uAspect;
+uniform int uMode;
+out vec4 fragColor;
+
+// Conversions RGB ↔ HSV (teinte 0–1)
+vec3 rgbVersHsv (vec3 c) {
+  vec4 K = vec4(0.0, -1.0 / 3.0, 2.0 / 3.0, -1.0);
+  vec4 p = mix(vec4(c.bg, K.wz), vec4(c.gb, K.xy), step(c.b, c.g));
+  vec4 q = mix(vec4(p.xyw, c.r), vec4(c.r, p.yzx), step(p.x, c.r));
+  float d = q.x - min(q.w, q.y);
+  return vec3(abs(q.z + (q.w - q.y) / (6.0 * d + 1e-10)), d / (q.x + 1e-10), q.x);
+}
+vec3 hsvVersRgb (vec3 c) {
+  vec3 p = abs(fract(c.xxx + vec3(1.0, 2.0 / 3.0, 1.0 / 3.0)) * 6.0 - 3.0);
+  return c.z * mix(vec3(1.0), clamp(p - 1.0, 0.0, 1.0), c.y);
+}
+
+// Bruit pseudo-aléatoire par pixel
+float hachage (vec2 p) {
+  p = fract(p * vec2(123.34, 456.21));
+  p += dot(p, p + 45.32);
+  return fract(p.x * p.y);
+}
+
+// Symétrie miroir : repli de la moitié droite sur la moitié gauche
+vec2 replier (vec2 uv) {
+  if (uSymetrie > 0.5) { uv.x = 0.5 - abs(uv.x - 0.5); }
+  return uv;
+}
+
+// Hauteur de la surface liquide (densité saturée en douceur)
+float hauteur (vec2 uv) {
+  return 1.0 - exp(-1.4 * max(echantillon(uDensite, replier(uv), texelSize).a, 0.0));
+}
+
+void main () {
+  vec4 d = echantillon(uDensite, replier(vUv), texelSize);
+  float a = max(d.a, 0.0);
+  float h = 1.0 - exp(-1.4 * a);
+  vec3 base = clamp(d.rgb / max(a, 1e-4), 0.0, 1.0);   // couleur moyenne injectée
+
+  // Normales par différences finies, calculées en espace écran (miroir compris)
+  vec2 e = texelSize * 1.5;
+  float hL = hauteur(vUv - vec2(e.x, 0.0));
+  float hR = hauteur(vUv + vec2(e.x, 0.0));
+  float hB = hauteur(vUv - vec2(0.0, e.y));
+  float hT = hauteur(vUv + vec2(0.0, e.y));
+  vec3 n = normalize(vec3((hL - hR) * uRelief, (hB - hT) * uRelief, 1.0));
+
+  // Palette selon le mode
+  vec3 hsv = rgbVersHsv(base);
+  vec3 emissif = vec3(0.0);
+  float brillance = 1.0;
+  vec3 fond = vec3(${FOND.join(', ')});
+  if (uMode == 1) {
+    // Lave : cœur incandescent, croûte sombre sur les bords
+    hsv.x -= 0.03 * h;
+    base = hsvVersRgb(hsv);
+    base = mix(base * 0.35, mix(base, vec3(1.0, 0.82, 0.45), 0.55), smoothstep(0.35, 0.95, h));
+    emissif = base * smoothstep(0.55, 1.0, h) * 0.45;
+    brillance = 0.5;
+  } else if (uMode == 2) {
+    // Nébuleuse : la teinte dérive avec la densité, lueur diffuse
+    hsv.x += (h - 0.5) * 0.18;
+    hsv.y *= 0.85;
+    base = hsvVersRgb(hsv);
+    emissif = base * h * 0.35;
+    brillance = 0.35;
+  } else if (uMode == 3) {
+    // Aurora : dégradé vertical de teinte + rideaux lumineux
+    hsv.x += (vUv.y - 0.4) * 0.22;
+    base = hsvVersRgb(hsv);
+    float rideau = 0.75 + 0.25 * sin(vUv.x * 38.0 + uTemps * 0.8 + h * 6.0);
+    base *= rideau;
+    emissif = base * h * 0.3;
+    brillance = 0.6;
+  } else if (uMode == 4) {
+    // Galaxie : la teinte tourne avec l'angle, étoiles en fond
+    vec2 q = (vUv - 0.5) * vec2(uAspect, 1.0);
+    // sin(2·angle) : variation continue, sans couture au passage ±π d'atan
+    hsv.x += 0.08 * sin(2.0 * atan(q.y, q.x) + uTemps * 0.3) + length(q) * 0.15;
+    base = hsvVersRgb(hsv);
+    emissif = base * h * 0.25;
+    brillance = 0.8;
+    float etoile = hachage(floor(gl_FragCoord.xy / 2.0));
+    fond += vec3(0.5, 0.55, 0.7) * step(0.9993, etoile) * (0.35 + 0.35 * sin(uBruit * 3.0 + etoile * 100.0));
+  }
+
+  // Éclairage Blinn-Phong + Fresnel (Schlick, F0 de l'eau ≈ 0.04)
+  vec3 L = normalize(vec3(-0.45, 0.6, 0.75));
+  vec3 V = vec3(0.0, 0.0, 1.0);
+  vec3 H = normalize(L + V);
+  float diffus = max(dot(n, L), 0.0);
+  float speculaire = pow(max(dot(n, H), 0.0), 90.0);
+  float fresnel = 0.04 + 0.96 * pow(1.0 - max(dot(n, V), 0.0), 5.0);
+  vec3 corps = base * (0.28 + 0.9 * diffus) + emissif;
+  vec3 couleur = mix(fond, corps, h);
+  float mouille = smoothstep(0.03, 0.25, h);
+  vec3 ciel = mix(vec3(0.10, 0.10, 0.12), base, 0.3);   // reflet d'environnement
+  couleur += mouille * (speculaire * 0.9 * brillance * vec3(1.0, 0.97, 0.9) + fresnel * ciel * 1.2);
+
+  // Grain de film
+  float g = hachage(gl_FragCoord.xy + fract(uBruit * 7.13) * 917.0) - 0.5;
+  couleur += g * uGrain * 0.07;
+
+  // Vignette
+  float r = length(vUv - 0.5) * 1.4142;
+  couleur *= 1.0 - uVignette * 0.75 * smoothstep(0.35, 1.0, r);
+
+  fragColor = vec4(clamp(couleur, 0.0, 1.0), 1.0);   // toujours opaque
+}`;
+
+  /* =================== 2. PROGRAMMES =================== */
+
+  function compiler(type, source) {
+    const s = gl.createShader(type);
+    gl.shaderSource(s, source);
+    gl.compileShader(s);
+    if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) {
+      const journal = gl.getShaderInfoLog(s);
+      gl.deleteShader(s);
+      throw new Error('compilation du shader : ' + journal);
+    }
+    return s;
+  }
+
+  /** Lie un programme et indexe ses uniformes actifs par nom. */
+  function creerProgramme(vs, corpsFragment) {
+    const programme = gl.createProgram();
+    gl.attachShader(programme, vs);
+    gl.attachShader(programme, compiler(gl.FRAGMENT_SHADER, enteteFragment() + GLSL_ECHANTILLON + corpsFragment));
+    gl.linkProgram(programme);
+    if (!gl.getProgramParameter(programme, gl.LINK_STATUS)) {
+      throw new Error('édition de liens : ' + gl.getProgramInfoLog(programme));
+    }
+    const u = {};
+    const n = gl.getProgramParameter(programme, gl.ACTIVE_UNIFORMS);
+    for (let i = 0; i < n; i++) {
+      const nom = gl.getActiveUniform(programme, i).name;
+      u[nom] = gl.getUniformLocation(programme, nom);
+    }
+    return { programme, u };
+  }
+
+  function creerProgrammes() {
+    const vs = compiler(gl.VERTEX_SHADER, SOURCE_VERTEX);
+    P = {
+      copie:        creerProgramme(vs, FS_COPIE),
+      dissipation:  creerProgramme(vs, FS_DISSIPATION),
+      injection:    creerProgramme(vs, FS_INJECTION),
+      advection:    creerProgramme(vs, FS_ADVECTION),
+      divergence:   creerProgramme(vs, FS_DIVERGENCE),
+      rotationnel:  creerProgramme(vs, FS_ROTATIONNEL),
+      vorticite:    creerProgramme(vs, FS_VORTICITE),
+      forces:       creerProgramme(vs, FS_FORCES),
+      pression:     creerProgramme(vs, FS_PRESSION),
+      gradient:     creerProgramme(vs, FS_GRADIENT),
+      affichage:    creerProgramme(vs, FS_AFFICHAGE),
+    };
+  }
+
+  /** Active un programme et renvoie sa table d'uniformes. */
+  function utiliser(prog) {
+    gl.useProgram(prog.programme);
+    return prog.u;
+  }
+
+  /** Quad plein écran (2 triangles) dans un VAO. */
+  function creerQuad() {
+    quad = gl.createVertexArray();
+    gl.bindVertexArray(quad);
+    gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer());
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, -1, 1, 1, 1, 1, -1]), gl.STATIC_DRAW);
+    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, gl.createBuffer());
+    gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array([0, 1, 2, 0, 2, 3]), gl.STATIC_DRAW);
+    gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
+    gl.enableVertexAttribArray(0);
+  }
+
+  /** Dessine le quad dans une cible (FBO) ou à l'écran si cible = null. */
+  function dessiner(cible) {
+    if (cible) {
+      gl.bindFramebuffer(gl.FRAMEBUFFER, cible.fbo);
+      gl.viewport(0, 0, cible.largeur, cible.hauteur);
+    } else {
+      gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+      gl.viewport(0, 0, gl.drawingBufferWidth, gl.drawingBufferHeight);
+    }
+    gl.bindVertexArray(quad);
+    gl.drawElements(gl.TRIANGLES, 6, gl.UNSIGNED_SHORT, 0);
+  }
+
+  /* =================== 3. FBO =================== */
+
+  /** Teste si un format de texture flottante est utilisable comme cible de rendu. */
+  function formatRendable(interne, format, type) {
+    const tex = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, tex);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+    gl.texImage2D(gl.TEXTURE_2D, 0, interne, 4, 4, 0, format, type, null);
+    const fbo = gl.createFramebuffer();
+    gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
+    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, tex, 0);
+    const ok = gl.checkFramebufferStatus(gl.FRAMEBUFFER) === gl.FRAMEBUFFER_COMPLETE;
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    gl.deleteFramebuffer(fbo);
+    gl.deleteTexture(tex);
+    return ok;
+  }
+
+  /**
+   * Choisit les formats : float 32 si EXT_color_buffer_float, sinon half float.
+   * Float 32 : filtrage linéaire seulement avec OES_texture_float_linear.
+   * Half float : filtrable nativement en WebGL 2 (OpenGL ES 3.0).
+   * Repli R → RG → RGBA si un format à moins de canaux n'est pas rendable.
+   */
+  function detecterFormats() {
+    const extFloat = gl.getExtension('EXT_color_buffer_float');
+    const extLineaire = gl.getExtension('OES_texture_float_linear');
+    const essais = [];
+    if (extFloat) {
+      essais.push({ type: gl.FLOAT, lineaire: !!extLineaire,
+        r: [gl.R32F, gl.RED], rg: [gl.RG32F, gl.RG], rgba: [gl.RGBA32F, gl.RGBA] });
+    }
+    if (extFloat || gl.getExtension('EXT_color_buffer_half_float')) {
+      essais.push({ type: gl.HALF_FLOAT, lineaire: true,
+        r: [gl.R16F, gl.RED], rg: [gl.RG16F, gl.RG], rgba: [gl.RGBA16F, gl.RGBA] });
+    }
+    for (const e of essais) {
+      const choisir = liste => {
+        const f = liste.find(([interne, format]) => formatRendable(interne, format, e.type));
+        return f ? { interne: f[0], format: f[1] } : null;
+      };
+      const rgba = choisir([e.rgba]);
+      const rg = choisir([e.rg, e.rgba]);
+      const r = choisir([e.r, e.rg, e.rgba]);
+      if (rgba && rg && r) return { type: e.type, lineaire: e.lineaire, r, rg, rgba };
+    }
+    return null;
+  }
+
+  function creerFBO(largeur, hauteur, fmt, filtre) {
+    gl.activeTexture(gl.TEXTURE0);
+    const texture = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, texture);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, filtre);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, filtre);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    gl.texImage2D(gl.TEXTURE_2D, 0, fmt.interne, largeur, hauteur, 0, fmt.format, formats.type, null);
+    const fbo = gl.createFramebuffer();
+    gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
+    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, texture, 0);
+    gl.viewport(0, 0, largeur, hauteur);
+    gl.clearColor(0, 0, 0, 0);
+    gl.clear(gl.COLOR_BUFFER_BIT);
+    return {
+      texture, fbo, largeur, hauteur,
+      texel: [1 / largeur, 1 / hauteur],
+      /** Lie la texture sur une unité et renvoie l'indice de l'unité. */
+      attacher(unite) {
+        gl.activeTexture(gl.TEXTURE0 + unite);
+        gl.bindTexture(gl.TEXTURE_2D, texture);
+        return unite;
+      },
+    };
+  }
+
+  /** Paire de FBO pour le ping-pong lecture / écriture. */
+  function creerDoubleFBO(largeur, hauteur, fmt, filtre) {
+    return {
+      largeur, hauteur,
+      texel: [1 / largeur, 1 / hauteur],
+      lecture: creerFBO(largeur, hauteur, fmt, filtre),
+      ecriture: creerFBO(largeur, hauteur, fmt, filtre),
+      echanger() { const t = this.lecture; this.lecture = this.ecriture; this.ecriture = t; },
+    };
+  }
+
+  function libererFBO(f) {
+    if (!f) return;
+    gl.deleteTexture(f.texture);
+    gl.deleteFramebuffer(f.fbo);
+  }
+
+  function libererDouble(d) {
+    if (!d) return;
+    libererFBO(d.lecture);
+    libererFBO(d.ecriture);
+  }
+
+  /** Redimensionne un FBO double en conservant son contenu (rééchantillonné). */
+  function redimensionnerDouble(ancien, largeur, hauteur, fmt, filtre) {
+    if (ancien && ancien.largeur === largeur && ancien.hauteur === hauteur) return ancien;
+    const nouveau = creerDoubleFBO(largeur, hauteur, fmt, filtre);
+    if (ancien) {
+      const u = utiliser(P.copie);
+      gl.uniform2f(u.texelSize, nouveau.texel[0], nouveau.texel[1]);
+      gl.uniform2f(u.uTexelSource, ancien.texel[0], ancien.texel[1]);
+      gl.uniform1i(u.uTexture, ancien.lecture.attacher(0));
+      dessiner(nouveau.lecture);
+      libererDouble(ancien);
+    }
+    return nouveau;
+  }
+
+  /** Dimensions d'une grille : le petit côté vaut `res`, le grand suit le ratio. */
+  function grillePour(res) {
+    const l = gl.drawingBufferWidth, h = gl.drawingBufferHeight;
+    const maxTex = gl.getParameter(gl.MAX_TEXTURE_SIZE);
+    const ratio = Math.max(l, h) / Math.max(1, Math.min(l, h));
+    const petit = Math.max(16, Math.round(res));
+    const grand = Math.min(maxTex, Math.round(petit * ratio));
+    return l >= h ? { l: grand, h: petit } : { l: petit, h: grand };
+  }
+
+  /** (Re)crée tous les champs pour une résolution de simulation donnée. */
+  function initFBOs(resolution) {
+    const res = econome ? Math.min(resolution, 256) : resolution;
+    const sim = grillePour(res);
+    const teinture = grillePour(Math.min(res * 2, econome ? 512 : 1024));
+    const filtre = lineaire ? gl.LINEAR : gl.NEAREST;
+    gl.disable(gl.BLEND);
+    velocite = redimensionnerDouble(velocite, sim.l, sim.h, formats.rg, filtre);
+    densite = redimensionnerDouble(densite, teinture.l, teinture.h, formats.rgba, filtre);
+    // Champs auxiliaires : recalculés à chaque pas, inutile de les conserver
+    libererDouble(pression);
+    libererFBO(divergence);
+    libererFBO(rotationnel);
+    pression = creerDoubleFBO(sim.l, sim.h, formats.r, gl.NEAREST);
+    divergence = creerFBO(sim.l, sim.h, formats.r, gl.NEAREST);
+    rotationnel = creerFBO(sim.l, sim.h, formats.r, gl.NEAREST);
+    resolutionCourante = resolution;
+  }
+
+  /* =================== 4. SIMULATION =================== */
+
+  /** Couleur d'injection : colorLisse, complémentaire si le spectre est étalé, légère dérive. */
+  function couleurInjection(state) {
+    const c = state.colorLisse || [36, 0.82, 0.95];
+    let h = c[0];
+    if ((state.spread || 0) > 0.3) h += 180;                     // teinte complémentaire
+    const vitesseTeinte = 0.15 + clamp01(state.settings.rapidite / 100) * 1.6;
+    h += 18 * Math.sin(temps * vitesseTeinte);                   // « vitesse de teinte »
+    return hsv2rgb(h, c[1], c[2]);
+  }
+
+  /** Ajoute vitesse (vx, vy en texels/s) et densité colorée autour de (x, y). */
+  function injecter(x, y, vx, vy, rgb, quantite, rayon) {
+    const aspect = canvas.width / canvas.height;
+    const r = rayon * Math.min(1, aspect);   // rayon exprimé en fraction du petit côté
+    let u = utiliser(P.injection);
+    gl.uniform2f(u.texelSize, velocite.texel[0], velocite.texel[1]);
+    gl.uniform1f(u.uAspect, aspect);
+    gl.uniform2f(u.uPoint, x, y);
+    gl.uniform1f(u.uRayon, r * r);
+    // Vitesse
+    gl.uniform1i(u.uCible, velocite.lecture.attacher(0));
+    gl.uniform4f(u.uCouleur, vx, vy, 0, 0);
+    gl.uniform1f(u.uPlafond, 1e4);
+    dessiner(velocite.ecriture);
+    velocite.echanger();
+    // Densité (couleur prémultipliée, quantité dans l'alpha)
+    if (quantite > 0) {
+      u = utiliser(P.injection);
+      gl.uniform2f(u.texelSize, densite.texel[0], densite.texel[1]);
+      gl.uniform1i(u.uCible, densite.lecture.attacher(0));
+      gl.uniform4f(u.uCouleur, rgb[0] * quantite, rgb[1] * quantite, rgb[2] * quantite, quantite);
+      gl.uniform1f(u.uPlafond, PLAFOND_DENSITE);
+      dessiner(densite.ecriture);
+      densite.echanger();
+    }
+  }
+
+  /** Injection avec copie miroir si la symétrie est active. */
+  function injecterSym(state, x, y, vx, vy, rgb, quantite, rayon) {
+    injecter(x, y, vx, vy, rgb, quantite, rayon);
+    if (state.settings.symetrie) injecter(1 - x, y, -vx, vy, rgb, quantite, rayon);
+  }
+
+  /** Traduit le state (pointeur, audio, spectre) en injections. */
+  function appliquerInjections(state, dt) {
+    const s = state.settings;
+    const force = clamp01(s.force / 100);
+    const ampli = clamp01(s.amplitude / 100);
+    const level = clamp01(state.level);
+    const freq = Math.max(state.frequency || 0, 60);
+    const rayon = 1.1 / Math.sqrt(freq);                // aigu = point précis, grave = grosse tache
+    const parUv = Math.min(velocite.largeur, velocite.hauteur); // texels par petit côté
+    const k = dt * 60;                                  // normalisation à 60 images/s
+    const rgb = couleurInjection(state);
+
+    // 1) Pointeur / clavier / molette : force ∝ strength, modulée par level
+    const inj = state.injection || {};
+    const ix = clamp01(inj.x === undefined ? 0.5 : inj.x);
+    const iy = clamp01(inj.y === undefined ? 0.5 : inj.y);   // déjà en origine bas-gauche
+    const is = clamp01(inj.strength);
+    if (is > 0.01) {
+      if (precForce <= 0.01) { precX = ix; precY = iy; }     // nouveau contact : pas de saut
+      const intensite = is * (0.5 + level);
+      let vx = (ix - precX) / dt * velocite.largeur * 1.5;
+      let vy = (iy - precY) / dt * velocite.hauteur * 1.5;
+      if (Math.hypot(vx, vy) < 1) {
+        // Pointeur immobile : impulsion dont la direction tourne lentement
+        const angle = temps * 2.3;
+        vx = Math.cos(angle) * 0.25 * parUv;
+        vy = Math.sin(angle) * 0.25 * parUv;
+      }
+      const m = Math.hypot(vx, vy), plafond = 3 * parUv;
+      if (m > plafond) { vx *= plafond / m; vy *= plafond / m; }
+      injecterSym(state, ix, iy, vx * force * intensite, vy * force * intensite,
+        rgb, 0.35 * intensite * k, rayon * (1 + 0.5 * is));
+    }
+    precX = ix; precY = iy; precForce = is;
+
+    // 2) Audio : émetteur errant, hauteur à l'écran ~ log(fréquence)
+    if (level > 0.015) {
+      const nf = clamp01(Math.log2(freq / 400) / Math.log2(9000 / 400)); // 0 grave → 1 aigu
+      const ex = 0.5 + 0.3 * Math.sin(temps * 0.31) * Math.cos(temps * 0.17);
+      const ey = 0.2 + 0.6 * nf + 0.05 * Math.sin(temps * 0.9);
+      const angle = temps * (0.6 + nf) + 2 * Math.sin(temps * 0.23);
+      const v = 1.2 * level * (0.3 + ampli) * (0.3 + force) * parUv * k;
+      injecterSym(state, ex, ey, Math.cos(angle) * v, Math.sin(angle) * v,
+        rgb, 0.6 * level * (0.3 + ampli) * k, rayon);
+    }
+
+    // 3) Spectre étalé (pluie, bruit) : gouttelettes aléatoires
+    const spread = clamp01(state.spread);
+    if (spread > 0.3 && Math.random() < spread * level * k * 0.8) {
+      const gx = 0.1 + Math.random() * 0.8, gy = 0.15 + Math.random() * 0.75;
+      const a = Math.random() * Math.PI * 2;
+      const v = 0.4 * (0.3 + force) * parUv;
+      injecterSym(state, gx, gy, Math.cos(a) * v, Math.sin(a) * v,
+        rgb, 2 * level * (0.3 + ampli), rayon * 0.7);
+    }
+  }
+
+  /** Un pas de Navier-Stokes simplifié. */
+  function pas(state, dt) {
+    const s = state.settings;
+    const visc = clamp01(s.viscosite / 100);
+    const mode = Math.min(4, Math.max(0, state.mode | 0));
+    const tx = velocite.texel;
+    gl.disable(gl.BLEND);
+
+    // Rotationnel
+    let u = utiliser(P.rotationnel);
+    gl.uniform2f(u.texelSize, tx[0], tx[1]);
+    gl.uniform1i(u.uVelocite, velocite.lecture.attacher(0));
+    dessiner(rotationnel);
+
+    // Confinement de vorticité
+    u = utiliser(P.vorticite);
+    gl.uniform2f(u.texelSize, tx[0], tx[1]);
+    gl.uniform1i(u.uVelocite, velocite.lecture.attacher(0));
+    gl.uniform1i(u.uRotationnel, rotationnel.attacher(1));
+    gl.uniform1f(u.uCurl, CURL_PAR_MODE[mode] * (0.5 + clamp01(s.amplitude / 100)));
+    gl.uniform1f(u.dt, dt);
+    dessiner(velocite.ecriture);
+    velocite.echanger();
+
+    // Forces de mode (Encre = aucune)
+    if (mode !== 0) {
+      u = utiliser(P.forces);
+      gl.uniform2f(u.texelSize, tx[0], tx[1]);
+      gl.uniform1i(u.uVelocite, velocite.lecture.attacher(0));
+      gl.uniform1i(u.uDensite, densite.lecture.attacher(1));
+      gl.uniform1i(u.uMode, mode);
+      gl.uniform1f(u.uTemps, temps);
+      gl.uniform1f(u.dt, dt);
+      gl.uniform1f(u.uAspect, canvas.width / canvas.height);
+      gl.uniform1f(u.uEchelle, Math.min(velocite.largeur, velocite.hauteur) / RESOLUTION_REF);
+      gl.uniform1f(u.uIntensite, 0.4 + clamp01(state.level) * 1.2);
+      dessiner(velocite.ecriture);
+      velocite.echanger();
+    }
+
+    // Divergence
+    u = utiliser(P.divergence);
+    gl.uniform2f(u.texelSize, tx[0], tx[1]);
+    gl.uniform1i(u.uVelocite, velocite.lecture.attacher(0));
+    dessiner(divergence);
+
+    // Pression : amorce atténuée puis itérations de Jacobi
+    u = utiliser(P.dissipation);
+    gl.uniform2f(u.texelSize, tx[0], tx[1]);
+    gl.uniform1i(u.uTexture, pression.lecture.attacher(0));
+    gl.uniform1f(u.uValeur, DISSIPATION_PRESSION);
+    dessiner(pression.ecriture);
+    pression.echanger();
+
+    u = utiliser(P.pression);
+    gl.uniform2f(u.texelSize, tx[0], tx[1]);
+    gl.uniform1i(u.uDivergence, divergence.attacher(0));
+    const iterations = econome ? ITERATIONS_PRESSION_ECONOME : ITERATIONS_PRESSION;
+    for (let i = 0; i < iterations; i++) {
+      gl.uniform1i(u.uPression, pression.lecture.attacher(1));
+      dessiner(pression.ecriture);
+      pression.echanger();
+    }
+
+    // Soustraction du gradient
+    u = utiliser(P.gradient);
+    gl.uniform2f(u.texelSize, tx[0], tx[1]);
+    gl.uniform1i(u.uPression, pression.lecture.attacher(0));
+    gl.uniform1i(u.uVelocite, velocite.lecture.attacher(1));
+    dessiner(velocite.ecriture);
+    velocite.echanger();
+
+    // Advection de la vitesse (dissipation ↑ avec la viscosité)
+    u = utiliser(P.advection);
+    gl.uniform2f(u.texelSize, tx[0], tx[1]);
+    gl.uniform2f(u.uTexelSource, tx[0], tx[1]);
+    gl.uniform1i(u.uVelocite, velocite.lecture.attacher(0));
+    gl.uniform1i(u.uSource, velocite.lecture.attacher(0));
+    gl.uniform1f(u.dt, dt);
+    gl.uniform1f(u.uDissipation, 0.08 + visc * 2.2);
+    dessiner(velocite.ecriture);
+    velocite.echanger();
+
+    // Advection de la densité (un fluide visqueux garde sa matière plus longtemps)
+    gl.uniform2f(u.uTexelSource, densite.texel[0], densite.texel[1]);
+    gl.uniform1i(u.uVelocite, velocite.lecture.attacher(0));
+    gl.uniform1i(u.uSource, densite.lecture.attacher(1));
+    gl.uniform1f(u.uDissipation, 0.15 + (1 - visc) * 0.7);
+    dessiner(densite.ecriture);
+    densite.echanger();
+  }
+
+  /** Passe en mode économe si les frames restent lentes plusieurs secondes. */
+  function surveillerPerf(dtBrut) {
+    if (econome) return;
+    dtMoyen += (dtBrut - dtMoyen) * 0.05;
+    dureeLente = dtMoyen > 1 / 38 ? dureeLente + dtBrut : 0;
+    if (dureeLente > 4) {
+      econome = true;
+      resize();
+      initFBOs(resolutionCourante);
+    }
+  }
+
+  function update(state, dt) {
+    if (!window.FluidReady || !state || !state.settings) return;
+    dernierEtat = state;
+    const dtBrut = Math.max(0, Number(dt) || 0);
+    if (dtBrut <= 0) return;
+    const pasTemps = Math.min(dtBrut, DT_MAX);         // dt clampé : pas d'explosion au réveil
+    surveillerPerf(dtBrut);
+    const resVoulue = Math.min(512, Math.max(64, Number(state.settings.resolution) || 256));
+    if (resVoulue !== resolutionCourante) initFBOs(resVoulue);
+    temps += pasTemps;
+    appliquerInjections(state, pasTemps);
+    pas(state, pasTemps);
+  }
+
+  /* =================== 5. RENDU =================== */
+
+  function render(state) {
+    if (!window.FluidReady) return;
+    const etat = state || dernierEtat;
+    if (!etat || !etat.settings) {
+      gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+      gl.clearColor(FOND[0], FOND[1], FOND[2], 1);
+      gl.clear(gl.COLOR_BUFFER_BIT);
+      return;
+    }
+    dernierEtat = etat;
+    const s = etat.settings;
+    gl.disable(gl.BLEND);
+    const u = utiliser(P.affichage);
+    gl.uniform2f(u.texelSize, densite.texel[0], densite.texel[1]);
+    gl.uniform1i(u.uDensite, densite.lecture.attacher(0));
+    gl.uniform1f(u.uTemps, temps);
+    gl.uniform1f(u.uBruit, (performance.now() / 1000) % 1000);
+    gl.uniform1f(u.uGrain, clamp01(s.grain / 100));
+    gl.uniform1f(u.uVignette, clamp01(s.vignette / 100));
+    gl.uniform1f(u.uSymetrie, s.symetrie ? 1 : 0);
+    gl.uniform1f(u.uRelief, 4 + 10 * clamp01(s.amplitude / 100));
+    gl.uniform1f(u.uAspect, canvas.width / canvas.height);
+    gl.uniform1i(u.uMode, Math.min(4, Math.max(0, etat.mode | 0)));
+    dessiner(null);
+  }
+
+  /** Taille du canvas = taille CSS × DPR plafonné (plus bas en mode économe). */
+  function resize() {
+    if (!canvas) return;
+    const plafond = Math.min(options.dprMax || 2, econome ? 1.5 : 2);
+    const dpr = Math.min(window.devicePixelRatio || 1, plafond);
+    const largeur = Math.max(1, Math.floor((canvas.clientWidth || window.innerWidth) * dpr));
+    const hauteur = Math.max(1, Math.floor((canvas.clientHeight || window.innerHeight) * dpr));
+    if (canvas.width !== largeur || canvas.height !== hauteur) {
+      canvas.width = largeur;
+      canvas.height = hauteur;
+      if (window.FluidReady) initFBOs(resolutionCourante || 256);
+    }
+  }
+
+  function capture() {
+    if (window.FluidReady && dernierEtat) render(dernierEtat);   // frame fraîche avant export
+    return canvas || document.getElementById('scene');
+  }
+
+  /* =================== 6. INITIALISATION & API PUBLIQUE =================== */
+
+  function detecterEconome() {
+    if (typeof options.econome === 'boolean') return options.econome;
+    const tactile = !!(window.matchMedia && window.matchMedia('(pointer: coarse)').matches);
+    return tactile || /Android|iPhone|iPad|Mobile/i.test(navigator.userAgent || '');
+  }
+
+  /** Extensions, programmes, géométrie, FBO (aussi appelé après une perte de contexte). */
+  function construire() {
+    formats = detecterFormats();
+    if (!formats) throw new Error('aucun format flottant rendable');
+    lineaire = formats.lineaire;
+    creerQuad();
+    creerProgrammes();
+    velocite = densite = pression = divergence = rotationnel = null;
+    initFBOs(resolutionCourante || 256);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    gl.clearColor(FOND[0], FOND[1], FOND[2], 1);
+    gl.clear(gl.COLOR_BUFFER_BIT);
+  }
+
+  function init(cible, opts) {
+    window.FluidReady = false;
+    try {
+      canvas = cible || document.getElementById('scene');
+      options = opts || {};
+      econome = detecterEconome();
+      gl = canvas.getContext('webgl2', ATTRIBUTS_CONTEXTE);
+      if (!gl) throw new Error('WebGL 2 indisponible');
+      if (!ecouteursPoses) {
+        ecouteursPoses = true;
+        canvas.addEventListener('webglcontextlost', e => {
+          e.preventDefault();
+          window.FluidReady = false;
+        });
+        canvas.addEventListener('webglcontextrestored', () => {
+          try { construire(); window.FluidReady = true; } catch (err) { window.FluidReady = false; }
+        });
+      }
+      resize();
+      construire();
+      window.FluidReady = true;
+      return true;
+    } catch (err) {
+      // Repli silencieux : l'interface reste utilisable, fond CSS noir
+      console.warn('Onde liquide — moteur fluide désactivé : ' + err.message);
+      window.FluidReady = false;
+      return false;
+    }
+  }
+
+  window.Fluid = { init, update, render, resize, capture };
+})();
+
+/* ==================== AMORÇAGE ==================== */
+(function demarrer() {
+  const canvas = $('#scene');
+  Fluid.init(canvas, { dprMax: DPR_MAX });
+  Audio.assurerContexte();   // contexte créé en suspens, repris au premier geste
+  Analyse.init(Audio.analyser);
+  UI.init();
+  UI.appliquerRendu();
+  Interactions.init(canvas);
+  Onboarding.init();
+
+  // Pointeur actif : garde l'injection allumée pendant le contact
+  canvas.addEventListener('pointerdown', () => { Interactions.pointActif = true; });
+  window.addEventListener('pointerup',   () => { Interactions.pointActif = false; });
+  canvas.addEventListener('pointercancel', () => { Interactions.pointActif = false; });
+
+  // Boutons capture / partage
+  $('#btn-capture').addEventListener('click', () => Capture.png());
+  $('#btn-webm').addEventListener('click',    () => Capture.webm());
+  $('#btn-partage').addEventListener('click', () => Capture.partage());
+
+  // Redimensionnement (debounce léger)
+  let minuteur;
+  window.addEventListener('resize', () => {
+    clearTimeout(minuteur);
+    minuteur = setTimeout(() => Fluid.resize(), 120);
+  });
+
+  Boucle.demarrer();
+})();
+</script>
+</body>
+</html>
